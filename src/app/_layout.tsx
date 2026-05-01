@@ -7,7 +7,7 @@ import 'react-native-reanimated';
 
 import { initDatabase } from '@/db/database';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { useEventStore } from '@/store/eventStore';
+import { useNativeCalendarStore } from '@/store/nativeCalendarStore';
 import { useSettingsStore } from '@/store/settingsStore';
 
 export const unstable_settings = {
@@ -23,9 +23,10 @@ export default function RootLayout() {
     (async () => {
       try {
         await initDatabase();
+        await useSettingsStore.getState().loadSettings();
         await Promise.all([
-          useEventStore.getState().loadEvents(),
-          useSettingsStore.getState().loadSettings(),
+          useNativeCalendarStore.getState().loadCalendars(),
+          useNativeCalendarStore.getState().fetchAll(),
         ]);
         setIsReady(true);
       } catch (e) {

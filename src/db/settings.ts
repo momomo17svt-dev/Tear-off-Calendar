@@ -39,11 +39,21 @@ export async function getAllSettings(): Promise<AppSettings> {
     console.error(e);
   }
 
+  let selectedCalendarIds: string[] = [];
+  try {
+    const raw = map.get('selected_calendar_ids');
+    if (raw) selectedCalendarIds = JSON.parse(raw);
+  } catch (e) {
+    console.error(e);
+  }
+
   return {
     isBgEnabled: map.get('is_bg_enabled') === '1',
     bgUri: (map.get('bg_uri') ?? '') || null,
     bgUris,
     bgMode: (map.get('bg_mode') as 'fixed' | 'random') || 'fixed',
     appTheme: (map.get('app_theme') as any) || 'light-gray',
+    selectedCalendarIds,
+    defaultCalendarId: (map.get('default_calendar_id') ?? '') || null,
   };
 }

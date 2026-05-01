@@ -1,23 +1,11 @@
-export type EventType = 'birthday' | 'schedule';
-
-export interface CalendarEvent {
-  id: number;
+export interface NativeCalendarEvent {
+  id: string;
   title: string;
-  date: string;
-  type: EventType;
-  memo: string | null;
-  is_annual: number;
-  color_code: string | null;
-  notify_time: string | null;
-  created_at: string;
-}
-
-export interface NewCalendarEvent {
-  title: string;
-  date: string;
-  type: EventType;
-  memo?: string | null;
-  is_annual?: number;
-  color_code?: string | null;
-  notify_time?: string | null;
+  startDate: Date;
+  endDate: Date;
+  calendarId: string;
+  calendarName: string;
+  calendarColor: string;
+  isAllDay: boolean;
+  notes: string | null;
 }

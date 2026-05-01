@@ -15,35 +15,19 @@ import {
 import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router } from 'expo-router';
+import * as Calendar from 'expo-calendar';
+import { useFocusEffect } from 'expo-router';
 
 import { useSettingsStore } from '@/store/settingsStore';
-import { useEventStore } from '@/store/eventStore';
-import type { CalendarEvent } from '@/types/event';
-import { exportEventToNativeCalendar } from '@/utils/nativeCalendar';
+import { useNativeCalendarStore } from '@/store/nativeCalendarStore';
+import type { NativeCalendarEvent } from '@/types/event';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const CARD_WIDTH = SCREEN_WIDTH * 0.88;
-
-/**
- * カードの固定高さ。
- * 全カードをこの高さで統一することでコンテンツ量による高さ差を排除する。
- * タブバー(~83px) + SafeAreaTop + スワイプヒント(~40px) + 上下マージン を差し引いた値。
- */
 const CARD_HEIGHT = SCREEN_HEIGHT * 0.70;
-
-/**
- * 画像ヘッダーの固定高さ (アスペクト比は固定しない — 高さで管理)
- * カード高さの 36% を画像に割り当てる。
- */
 const IMAGE_HEADER_H = CARD_HEIGHT * 0.36;
-/** 画像なし時のフォールバックヘッダー高さ (短め) */
 const NO_IMAGE_HEADER_H = CARD_HEIGHT * 0.18;
-
-/** バインダー高さ */
 const BINDING_H = 32;
-
-/** 日付セクションの固定高さ。予定リストに侵食されない。 */
 const DATE_SECTION_H = 150;
 
 const DAY_OF_WEEK = ['日', '月', '火', '水', '木', '金', '土'];
@@ -66,28 +50,32 @@ const getDayColor = (day: number) => {
 const toDateStr = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
+const formatTime = (date: Date) =>
+  `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+
 // ── 予定 1 件 ────────────────────────────────────────────────────────────
-function EventItem({ event, onPress }: { event: CalendarEvent; onPress: (e: CalendarEvent) => void }) {
-  const isBirthday = event.type === 'birthday';
+function EventItem({ event, onPress }: { event: NativeCalendarEvent; onPress: (e: NativeCalendarEvent) => void }) {
   return (
     <TouchableOpacity
       style={[
         styles.eventTag,
-        {
-          backgroundColor: isBirthday ? 'rgba(255,107,107,0.10)' : 'rgba(78,205,196,0.10)',
-          borderLeftColor: isBirthday ? '#ff6b6b' : '#4ecdc4',
-        },
+        { backgroundColor: `${event.calendarColor}1A`, borderLeftColor: event.calendarColor },
       ]}
       onPress={() => onPress(event)}
       activeOpacity={0.7}
     >
-      <Text style={styles.eventIcon}>{isBirthday ? '🎂' : '📌'}</Text>
-      <Text
-        style={[styles.eventText, { color: isBirthday ? '#c0392b' : '#16a085' }]}
-        numberOfLines={1}
-      >
-        {event.title}
-      </Text>
+      <Text style={styles.eventIcon}>📅</Text>
+      <View style={{ flex: 1 }}>
+        <Text
+          style={[styles.eventText, { color: '#1a1a2e' }]}
+          numberOfLines={1}
+        >
+          {event.title}
+        </Text>
+        {!event.isAllDay && (
+          <Text style={styles.eventTime}>{formatTime(event.startDate)}</Text>
+        )}
+      </View>
       <Text style={styles.eventChevron}>›</Text>
     </TouchableOpacity>
   );
@@ -99,8 +87,8 @@ function EventList({
   onEventPress,
   availableHeight,
 }: {
-  events: CalendarEvent[];
-  onEventPress: (e: CalendarEvent) => void;
+  events: NativeCalendarEvent[];
+  onEventPress: (e: NativeCalendarEvent) => void;
   availableHeight: number;
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -150,13 +138,11 @@ function EventActionSheet({
   onClose,
   onEdit,
   onDelete,
-  onExport,
 }: {
-  event: CalendarEvent | null;
+  event: NativeCalendarEvent | null;
   onClose: () => void;
-  onEdit: (e: CalendarEvent) => void;
-  onDelete: (e: CalendarEvent) => void;
-  onExport: (e: CalendarEvent) => void;
+  onEdit: (e: NativeCalendarEvent) => void;
+  onDelete: (e: NativeCalendarEvent) => void;
 }) {
   if (!event) return null;
   return (
@@ -164,19 +150,19 @@ function EventActionSheet({
       <View style={styles.sheetContainer}>
         <View style={styles.sheetHandle} />
         <Text style={styles.sheetTitle} numberOfLines={2}>
-          {event.type === 'birthday' ? '🎂' : '📌'} {event.title}
+          📅 {event.title}
         </Text>
-        <Text style={styles.sheetDate}>{event.date}</Text>
+        <Text style={styles.sheetDate}>
+          {toDateStr(event.startDate)}{!event.isAllDay ? ` ${formatTime(event.startDate)}` : ''}
+        </Text>
         <View style={styles.sheetDivider} />
-        {[
-          { icon: '✏️', label: '編集する', action: () => { onClose(); onEdit(event); } },
-          { icon: '📲', label: '端末カレンダーにエクスポート', action: () => { onClose(); onExport(event); } },
-        ].map(({ icon, label, action }) => (
-          <TouchableOpacity key={label} style={styles.sheetAction} onPress={action}>
-            <Text style={styles.sheetActionIcon}>{icon}</Text>
-            <Text style={styles.sheetActionText}>{label}</Text>
-          </TouchableOpacity>
-        ))}
+        <TouchableOpacity
+          style={styles.sheetAction}
+          onPress={() => { onClose(); onEdit(event); }}
+        >
+          <Text style={styles.sheetActionIcon}>✏️</Text>
+          <Text style={styles.sheetActionText}>編集する</Text>
+        </TouchableOpacity>
         <TouchableOpacity
           style={[styles.sheetAction, styles.sheetActionDanger]}
           onPress={() => { onClose(); onDelete(event); }}
@@ -196,14 +182,20 @@ function EventActionSheet({
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { isBgEnabled, bgUri: fixedBgUri, bgUris, bgMode, appTheme } = useSettingsStore();
-  const { getEventsForDate, removeEvent } = useEventStore();
-  useEventStore((state) => state.events);
+  const { getEventsForDate, removeEvent } = useNativeCalendarStore();
+  useNativeCalendarStore((state) => state.eventsByDate);
 
   const today = new Date();
   const [currentDateObj, setCurrentDateObj] = useState(today);
   const [prevDateObj, setPrevDateObj] = useState(() => { const d = new Date(today); d.setDate(d.getDate() - 1); return d; });
   const [nextDateObj, setNextDateObj] = useState(() => { const d = new Date(today); d.setDate(d.getDate() + 1); return d; });
-  const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
+  const [selectedEvent, setSelectedEvent] = useState<NativeCalendarEvent | null>(null);
+
+  useFocusEffect(
+    useCallback(() => {
+      useNativeCalendarStore.getState().fetchAll();
+    }, [])
+  );
 
   const pan = useRef(new Animated.ValueXY()).current;
   const lastDateRef = useRef(currentDateObj);
@@ -250,20 +242,22 @@ export default function HomeScreen() {
     return bgUris[seed % bgUris.length];
   };
 
-  const handleEventPress = useCallback((evt: CalendarEvent) => {
+  const handleEventPress = useCallback((evt: NativeCalendarEvent) => {
     if (Platform.OS === 'ios') {
       ActionSheetIOS.showActionSheetWithOptions(
         {
           title: evt.title,
-          message: evt.date,
-          options: ['キャンセル', '✏️ 編集する', '📲 カレンダーへ', '🗑️ 削除する'],
+          message: toDateStr(evt.startDate),
+          options: ['キャンセル', '✏️ 編集する', '🗑️ 削除する'],
           cancelButtonIndex: 0,
-          destructiveButtonIndex: 3,
+          destructiveButtonIndex: 2,
         },
-        (idx) => {
-          if (idx === 1) router.push({ pathname: '/modal', params: { eventId: String(evt.id) } });
-          if (idx === 2) handleExport(evt);
-          if (idx === 3) handleDelete(evt);
+        async (idx) => {
+          if (idx === 1) {
+            await Calendar.editEventInCalendarAsync({ id: evt.id });
+            useNativeCalendarStore.getState().fetchAll();
+          }
+          if (idx === 2) handleDelete(evt);
         }
       );
     } else {
@@ -271,25 +265,19 @@ export default function HomeScreen() {
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleDelete = (evt: CalendarEvent) => {
+  const handleDelete = (evt: NativeCalendarEvent) => {
     Alert.alert('削除の確認', `「${evt.title}」を削除しますか？`, [
       { text: 'キャンセル', style: 'cancel' },
-      { text: '削除', style: 'destructive', onPress: () => removeEvent(evt.id) },
+      { text: '削除', style: 'destructive', onPress: () => removeEvent(evt.id, toDateStr(evt.startDate)) },
     ]);
   };
 
-  const handleExport = async (evt: CalendarEvent) => {
-    const id = await exportEventToNativeCalendar({ title: evt.title, dateStr: evt.date });
-    if (id) Alert.alert('完了', '端末カレンダーにエクスポートしました ✓');
+  const handleEdit = async (evt: NativeCalendarEvent) => {
+    await Calendar.editEventInCalendarAsync({ id: evt.id });
+    useNativeCalendarStore.getState().fetchAll();
   };
 
-  const handleEdit = (evt: CalendarEvent) => {
-    router.push({ pathname: '/modal', params: { eventId: String(evt.id) } });
-  };
-
-  // ────────────────────────────────────────────────────────────────────────
-  // カードレンダリング
-  // ────────────────────────────────────────────────────────────────────────
+  // ── カードレンダリング ──────────────────────────────────────────────────
   const renderCard = (dObj: Date) => {
     const year  = dObj.getFullYear();
     const month = dObj.getMonth() + 1;
@@ -301,22 +289,16 @@ export default function HomeScreen() {
     const bgUri     = getBgUri(dObj);
     const events    = getEventsForDate(dateStr);
 
-    // 画像の有無でヘッダー高さを切り替える
     const imageH = bgUri ? IMAGE_HEADER_H : NO_IMAGE_HEADER_H;
-
-    // 予定リストに使える高さ = カード高さ - バインダー - 画像 - 日付セクション - 内部padding
     const eventsAreaH = CARD_HEIGHT - BINDING_H - imageH - DATE_SECTION_H - 16;
 
     return (
-      // ── カード全体: 高さ固定・overflow:hidden ──
       <View style={[styles.cardInner, { height: CARD_HEIGHT }]}>
 
-        {/* ① バインダー穴（固定高さ） */}
         <View style={styles.bindingContainer}>
           {[1,2,3,4,5,6].map((i) => <View key={i} style={styles.hole} />)}
         </View>
 
-        {/* ② 画像 or フォールバック（固定高さ） */}
         {bgUri ? (
           <View style={[styles.imageHeader, { height: imageH }]}>
             <Image source={{ uri: bgUri }} style={StyleSheet.absoluteFill} contentFit="cover" />
@@ -334,7 +316,6 @@ export default function HomeScreen() {
           </View>
         )}
 
-        {/* ③ 日付セクション（固定高さ — 予定リストに侵食されない） */}
         <View style={[styles.dateSection, { height: DATE_SECTION_H }]}>
           {todayFlag && (
             <View style={styles.todayBadge}>
@@ -354,10 +335,8 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        {/* ④ 仕切り線 */}
         <View style={styles.divider} />
 
-        {/* ⑤ 予定リスト（固定高さ内でスクロール） */}
         <View style={[styles.eventsContainer, { height: eventsAreaH }]}>
           <EventList
             events={events}
@@ -380,18 +359,15 @@ export default function HomeScreen() {
           <Text style={styles.swipeHint}>↕ スワイプで日付切り替え</Text>
         </View>
 
-        {/* Layer 1: 次の日（背面） — 固定高さなので飛び出さない */}
         <Animated.View style={[styles.card, styles.absolute, styles.shadow]}>
           {renderCard(nextDateObj)}
         </Animated.View>
 
-        {/* Layer 2: 今日（中間） */}
         <Animated.View style={[styles.card, styles.absolute, styles.shadow,
           { transform: [{ translateY: currentTranslateY }, { rotateZ: currentRotateZ }] }]}>
           {renderCard(currentDateObj)}
         </Animated.View>
 
-        {/* Layer 3: 前の日（前面） */}
         <Animated.View
           style={[styles.card, styles.absolute, styles.shadow,
             { transform: [{ translateY: prevTranslateY }, { rotateZ: prevRotateZ }] }]}
@@ -402,14 +378,12 @@ export default function HomeScreen() {
 
       </View>
 
-      {/* Android 用アクションシート */}
       {Platform.OS !== 'ios' && (
         <EventActionSheet
           event={selectedEvent}
           onClose={() => setSelectedEvent(null)}
           onEdit={handleEdit}
           onDelete={handleDelete}
-          onExport={handleExport}
         />
       )}
     </LinearGradient>
@@ -428,14 +402,12 @@ const styles = StyleSheet.create({
   },
   swipeHint: { fontSize: 11, color: 'rgba(0,0,0,0.45)', fontWeight: '500', letterSpacing: 0.3 },
 
-  // ── カード ──
-  // overflow: 'hidden' + height: CARD_HEIGHT → 中身の量に依存しない固定サイズ
   card: {
     width: CARD_WIDTH,
-    height: CARD_HEIGHT,       // ← 固定高さ (全カード同一)
+    height: CARD_HEIGHT,
     backgroundColor: '#fff',
     borderRadius: 16,
-    overflow: 'hidden',        // ← はみ出したコンテンツは見えない
+    overflow: 'hidden',
   },
   absolute: { position: 'absolute' },
   shadow: {
@@ -443,10 +415,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.18, shadowRadius: 24, elevation: 12,
   },
 
-  // cardInner も同じ高さで管理
   cardInner: { width: '100%', flexDirection: 'column' },
 
-  // ── バインダー ──
   bindingContainer: {
     height: BINDING_H,
     backgroundColor: '#f1f3f5',
@@ -460,19 +430,17 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.6, shadowRadius: 3, elevation: 3,
   },
 
-  // ── 画像 ──
   imageHeader: { width: '100%', overflow: 'hidden', position: 'relative' },
   noImageHeader: { width: '100%', alignItems: 'center', justifyContent: 'center' },
   imageGradient: { position: 'absolute', bottom: 0, left: 0, right: 0 },
   seasonDecor: { fontSize: 40, opacity: 0.5 },
 
-  // ── 日付セクション（固定高さ） ──
   dateSection: {
     paddingHorizontal: 20,
     paddingTop: 10,
     alignItems: 'center',
     justifyContent: 'center',
-    overflow: 'hidden',        // ← 日付エリアも絶対に溢れない
+    overflow: 'hidden',
   },
   todayBadge: {
     backgroundColor: '#e63946', paddingHorizontal: 10,
@@ -484,19 +452,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'baseline',
     justifyContent: 'center', width: '100%', paddingHorizontal: 10,
   },
-  // 日付の大きさは固定 — 予定エリアとは完全に独立
   day: { fontWeight: '800', fontSize: 80, letterSpacing: -2, lineHeight: 88 },
   dayOfWeek: { fontSize: 22, fontWeight: '700', marginLeft: 6 },
 
-  // ── 仕切り線 ──
   divider: {
     width: '80%', height: 1.5, backgroundColor: '#ececec',
-    marginHorizontal: 'auto',      // 中央揃え
     alignSelf: 'center',
     borderRadius: 1,
   },
 
-  // ── 予定エリア（固定高さ内でスクロール） ──
   eventsContainer: {
     width: '100%',
     paddingHorizontal: 12,
@@ -505,7 +469,6 @@ const styles = StyleSheet.create({
   },
   eventScrollContent: { paddingBottom: 4 },
 
-  // ── 予定タグ ──
   eventTag: {
     flexDirection: 'row', alignItems: 'center',
     borderLeftWidth: 3, borderRadius: 8,
@@ -513,20 +476,18 @@ const styles = StyleSheet.create({
     marginBottom: 5, gap: 8,
   },
   eventIcon: { fontSize: 14 },
-  eventText: { fontSize: 13, fontWeight: '600', flex: 1 },
+  eventText: { fontSize: 13, fontWeight: '600' },
+  eventTime: { fontSize: 11, color: '#888', marginTop: 1 },
   eventChevron: { fontSize: 16, color: '#ccc', fontWeight: '300' },
 
-  // 展開ボタン
   expandButton: { alignItems: 'center', paddingVertical: 5 },
   expandButtonText: { fontSize: 12, color: '#0a7ea4', fontWeight: '700' },
 
-  // Empty State
   emptyState: { alignItems: 'center', paddingVertical: 12, gap: 4 },
   emptyIcon: { fontSize: 24, marginBottom: 2 },
   noEventsText: { fontSize: 13, color: '#aaa', fontWeight: '500' },
   noEventsHint: { fontSize: 11, color: '#ccc' },
 
-  // ── Android アクションシート ──
   sheetOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0,0,0,0.45)',

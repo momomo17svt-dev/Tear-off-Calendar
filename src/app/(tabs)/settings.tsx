@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
+  Dimensions,
   StyleSheet,
   View,
   Switch,
@@ -9,6 +10,9 @@ import {
   Text,
   ActivityIndicator,
 } from 'react-native';
+
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+const CARD_IMAGE_ASPECT = (SCREEN_WIDTH * 0.88) / (SCREEN_HEIGHT * 0.70 * 0.36);
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import { Image } from 'expo-image';
@@ -16,6 +20,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 
 import { useSettingsStore } from '@/store/settingsStore';
+import { useNativeCalendarStore } from '@/store/nativeCalendarStore';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 
 const THEMES = [
@@ -27,11 +32,39 @@ const THEMES = [
 export default function SettingsScreen() {
   const {
     isBgEnabled, bgUri, bgUris, bgMode, appTheme,
+    selectedCalendarIds,
     setBgEnabled, setBgUri, addBgUri, removeBgUri, setBgMode, setAppTheme,
+    setSelectedCalendarIds,
   } = useSettingsStore();
+
+  const { availableCalendars, loadCalendars, fetchAll } = useNativeCalendarStore();
 
   const insets = useSafeAreaInsets();
   const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    loadCalendars();
+  }, []);
+
+  const handleCalendarToggle = async (calendarId: string, enabled: boolean) => {
+    let next: string[];
+    if (selectedCalendarIds.length === 0) {
+      // 空 = 全表示。OFFにする場合は他の全IDを選択状態にしてから対象を除外
+      const allIds = availableCalendars.map((c) => c.id);
+      next = enabled ? allIds : allIds.filter((id) => id !== calendarId);
+    } else {
+      next = enabled
+        ? [...selectedCalendarIds, calendarId]
+        : selectedCalendarIds.filter((id) => id !== calendarId);
+    }
+    await setSelectedCalendarIds(next);
+    await fetchAll();
+  };
+
+  const isCalendarEnabled = (calendarId: string) => {
+    if (selectedCalendarIds.length === 0) return true;
+    return selectedCalendarIds.includes(calendarId);
+  };
 
   const pickImage = async () => {
     try {
@@ -74,6 +107,34 @@ export default function SettingsScreen() {
         <View style={styles.header}>
           <Text style={styles.headerTitle}>設定</Text>
           <Text style={styles.headerSubtitle}>カレンダーをカスタマイズ</Text>
+        </View>
+
+        {/* ── 表示するカレンダー ── */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>📋 表示するカレンダー</Text>
+          <Text style={styles.sectionDesc}>ホーム画面に表示する予定のカレンダーを選択</Text>
+
+          {availableCalendars.length === 0 ? (
+            <View style={styles.calendarEmptyState}>
+              <Text style={styles.calendarEmptyText}>カレンダーが見つかりません</Text>
+              <Text style={styles.calendarEmptyHint}>カレンダーへのアクセス許可が必要です</Text>
+            </View>
+          ) : (
+            <View style={styles.calendarList}>
+              {availableCalendars.map((cal) => (
+                <View key={cal.id} style={styles.calendarRow}>
+                  <View style={[styles.calendarDot, { backgroundColor: cal.color }]} />
+                  <Text style={styles.calendarName} numberOfLines={1}>{cal.title}</Text>
+                  <Switch
+                    value={isCalendarEnabled(cal.id)}
+                    onValueChange={(v) => handleCalendarToggle(cal.id, v)}
+                    trackColor={{ false: '#d1d5db', true: '#a5f3fc' }}
+                    thumbColor={isCalendarEnabled(cal.id) ? '#0a7ea4' : '#9ca3af'}
+                  />
+                </View>
+              ))}
+            </View>
+          )}
         </View>
 
         {/* ── 背景テーマ ── */}
@@ -191,7 +252,6 @@ export default function SettingsScreen() {
                         >
                           <Image source={{ uri }} style={styles.thumbnail} contentFit="cover" />
 
-                          {/* 選択オーバーレイ */}
                           {isSelected && (
                             <View style={styles.selectedOverlay}>
                               <IconSymbol
@@ -202,7 +262,6 @@ export default function SettingsScreen() {
                             </View>
                           )}
 
-                          {/* 削除ボタン */}
                           <TouchableOpacity
                             style={styles.deleteButton}
                             onPress={() => handleRemove(uri)}
@@ -225,7 +284,7 @@ export default function SettingsScreen() {
           <Text style={styles.appName}>📅 日めくりカレンダー</Text>
           <Text style={styles.appVersion}>Version 1.0.0</Text>
           <Text style={styles.appDesc}>
-            毎日の予定と誕生日を、お気に入りの写真と一緒に。
+            毎日の予定を、お気に入りの写真と一緒に。
           </Text>
         </View>
       </ScrollView>
@@ -241,7 +300,6 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 16,
   },
-  // ── ヘッダー ──
   header: {
     paddingTop: 20,
     paddingBottom: 24,
@@ -258,7 +316,6 @@ const styles = StyleSheet.create({
     marginTop: 2,
     fontWeight: '500',
   },
-  // ── セクション ──
   section: {
     backgroundColor: '#ffffff',
     borderRadius: 20,
@@ -286,12 +343,52 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#94a3b8',
     fontWeight: '400',
+    marginBottom: 14,
+  },
+  // ── カレンダー ──
+  calendarEmptyState: {
+    alignItems: 'center',
+    paddingVertical: 16,
+    gap: 4,
+  },
+  calendarEmptyText: {
+    fontSize: 14,
+    color: '#94a3b8',
+    fontWeight: '600',
+  },
+  calendarEmptyHint: {
+    fontSize: 12,
+    color: '#cbd5e1',
+  },
+  calendarList: {
+    gap: 6,
+  },
+  calendarRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 4,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#f1f5f9',
+  },
+  calendarDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    flexShrink: 0,
+  },
+  calendarName: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '500',
+    color: '#334155',
   },
   // ── テーマ ──
   themeGrid: {
     flexDirection: 'row',
     gap: 12,
-    marginTop: 14,
+    marginTop: 0,
   },
   themeCard: {
     flex: 1,
@@ -367,7 +464,6 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: '700',
   },
-  // ── 画像エリア ──
   imageSection: {
     marginTop: 4,
   },
@@ -424,8 +520,8 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   gridItem: {
-    width: '31%',
-    aspectRatio: 1,
+    width: '46%',
+    aspectRatio: CARD_IMAGE_ASPECT,
     borderRadius: 12,
     overflow: 'hidden',
     borderWidth: 3,
@@ -455,7 +551,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  // ── アプリ情報 ──
   aboutSection: {
     alignItems: 'center',
     paddingVertical: 28,

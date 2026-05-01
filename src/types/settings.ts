@@ -1,4 +1,11 @@
-export type SettingKey = 'is_bg_enabled' | 'bg_uri' | 'bg_uris' | 'bg_mode' | 'app_theme';
+export type SettingKey =
+  | 'is_bg_enabled'
+  | 'bg_uri'
+  | 'bg_uris'
+  | 'bg_mode'
+  | 'app_theme'
+  | 'selected_calendar_ids'
+  | 'default_calendar_id';
 
 export interface SettingRow {
   key: SettingKey;
@@ -13,4 +20,6 @@ export interface AppSettings {
   bgUris: string[];
   bgMode: 'fixed' | 'random';
   appTheme: AppTheme;
+  selectedCalendarIds: string[];
+  defaultCalendarId: string | null;
 }

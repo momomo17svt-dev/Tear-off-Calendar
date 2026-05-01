@@ -1,5 +1,6 @@
+import * as Calendar from 'expo-calendar';
 import { Tabs, router } from 'expo-router';
-import React from 'react';
+import React, { useCallback } from 'react';
 import { BlurView } from 'expo-blur';
 import { Platform, StyleSheet } from 'react-native';
 
@@ -7,9 +8,23 @@ import { HapticTab } from '@/components/haptic-tab';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useNativeCalendarStore } from '@/store/nativeCalendarStore';
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
+  const { fetchAll } = useNativeCalendarStore();
+
+  const handleAddPress = useCallback(async () => {
+    if (Platform.OS === 'ios') {
+      // iOS: ネイティブカレンダーの予定作成UIを表示
+      await Calendar.createEventInCalendarAsync();
+      // 作成後（キャンセル含む）にキャッシュを更新
+      await fetchAll();
+    } else {
+      // Android: カスタムモーダルにフォールバック
+      router.push('/modal');
+    }
+  }, [fetchAll]);
 
   return (
     <Tabs
@@ -61,7 +76,7 @@ export default function TabLayout() {
         listeners={{
           tabPress: (e) => {
             e.preventDefault();
-            router.push('/modal');
+            handleAddPress();
           },
         }}
       />

@@ -9,6 +9,8 @@ interface SettingsState {
   bgUris: string[];
   bgMode: 'fixed' | 'random';
   appTheme: AppTheme;
+  selectedCalendarIds: string[];
+  defaultCalendarId: string | null;
   isLoading: boolean;
   loadSettings: () => Promise<void>;
   setBgEnabled: (enabled: boolean) => Promise<void>;
@@ -17,6 +19,8 @@ interface SettingsState {
   removeBgUri: (uri: string) => Promise<void>;
   setBgMode: (mode: 'fixed' | 'random') => Promise<void>;
   setAppTheme: (theme: AppTheme) => Promise<void>;
+  setSelectedCalendarIds: (ids: string[]) => Promise<void>;
+  setDefaultCalendarId: (id: string | null) => Promise<void>;
 }
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({
@@ -25,18 +29,22 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   bgUris: [],
   bgMode: 'fixed',
   appTheme: 'light-gray',
+  selectedCalendarIds: [],
+  defaultCalendarId: null,
   isLoading: false,
 
   loadSettings: async () => {
     set({ isLoading: true });
     const s = await getAllSettings();
-    set({ 
-      isBgEnabled: s.isBgEnabled, 
-      bgUri: s.bgUri, 
+    set({
+      isBgEnabled: s.isBgEnabled,
+      bgUri: s.bgUri,
       bgUris: s.bgUris,
       bgMode: s.bgMode,
       appTheme: s.appTheme,
-      isLoading: false 
+      selectedCalendarIds: s.selectedCalendarIds,
+      defaultCalendarId: s.defaultCalendarId,
+      isLoading: false,
     });
   },
 
@@ -87,5 +95,15 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   setAppTheme: async (theme) => {
     await setSetting('app_theme', theme);
     set({ appTheme: theme });
+  },
+
+  setSelectedCalendarIds: async (ids) => {
+    await setSetting('selected_calendar_ids', JSON.stringify(ids));
+    set({ selectedCalendarIds: ids });
+  },
+
+  setDefaultCalendarId: async (id) => {
+    await setSetting('default_calendar_id', id ?? '');
+    set({ defaultCalendarId: id });
   },
 }));

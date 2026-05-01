@@ -1,3 +1,4 @@
+import * as Calendar from 'expo-calendar';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState, useEffect } from 'react';
 import {
@@ -17,20 +18,11 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 
-import { useEventStore } from '@/store/eventStore';
-import type { CalendarEvent } from '@/types/event';
-import { exportEventToNativeCalendar } from '@/utils/nativeCalendar';
+import { useNativeCalendarStore } from '@/store/nativeCalendarStore';
+import { useSettingsStore } from '@/store/settingsStore';
+import { getWritableCalendars, toDateString } from '@/utils/nativeCalendar';
 
-// ── YYYY-MM-DD ヘルパー ─────────────────────────────────────────────────
-const toDateStr = (d: Date) =>
-  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-
-const parseDateStr = (s: string): Date => {
-  const d = new Date(s + 'T00:00:00');
-  return isNaN(d.getTime()) ? new Date() : d;
-};
-
-// ── カレンダーピッカーモーダル（iOS/Android 共通） ────────────────────────
+// ── 日付ピッカーモーダル（iOS/Android 共通） ──────────────────────────────
 function DatePickerModal({
   visible,
   date,
@@ -49,7 +41,6 @@ function DatePickerModal({
   }, [visible, date]);
 
   if (Platform.OS === 'ios') {
-    // iOS: モーダル内にスピナー表示
     return (
       <Modal visible={visible} transparent animationType="slide">
         <TouchableOpacity style={styles.pickerOverlay} onPress={onClose} activeOpacity={1}>
@@ -77,7 +68,6 @@ function DatePickerModal({
     );
   }
 
-  // Android: inline ピッカー（Modal不要）
   if (!visible) return null;
   return (
     <DateTimePicker
@@ -85,69 +75,151 @@ function DatePickerModal({
       mode="date"
       display="default"
       onChange={(_, d) => {
-        onClose(); // Android は選択後自動で閉じる
+        onClose();
         if (d) onChange(d);
       }}
     />
   );
 }
 
+// ── カレンダー選択ピッカー ───────────────────────────────────────────────
+function CalendarPicker({
+  calendars,
+  selectedId,
+  onSelect,
+}: {
+  calendars: Calendar.Calendar[];
+  selectedId: string;
+  onSelect: (id: string) => void;
+}) {
+  if (calendars.length === 0) return null;
+  return (
+    <View style={styles.calendarList}>
+      {calendars.map((cal) => {
+        const active = cal.id === selectedId;
+        return (
+          <TouchableOpacity
+            key={cal.id}
+            style={[styles.calendarItem, active && styles.calendarItemActive]}
+            onPress={() => onSelect(cal.id)}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.calendarDot, { backgroundColor: cal.color }]} />
+            <Text style={[styles.calendarName, active && styles.calendarNameActive]} numberOfLines={1}>
+              {cal.title}
+            </Text>
+            {active && <Text style={styles.calendarCheck}>✓</Text>}
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
+}
+
 // ── メイン ────────────────────────────────────────────────────────────────
 export default function ModalScreen() {
-  const { eventId } = useLocalSearchParams<{ eventId?: string }>();
+  const { eventId, dateStr: initialDateStr } = useLocalSearchParams<{ eventId?: string; dateStr?: string }>();
   const isEdit = Boolean(eventId);
 
-  const { addEvent, editEvent, events } = useEventStore();
+  const { addEvent, editEvent, removeEvent } = useNativeCalendarStore();
+  const { defaultCalendarId } = useSettingsStore();
   const insets = useSafeAreaInsets();
 
-  // 編集モード時は既存イベントを読み込む
-  const existingEvent: CalendarEvent | undefined = isEdit
-    ? events.find((e) => e.id === Number(eventId))
-    : undefined;
-
   const today = new Date();
-  const [selectedDate, setSelectedDate] = useState<Date>(
-    existingEvent ? parseDateStr(existingEvent.date) : today
-  );
-  const [title, setTitle] = useState(existingEvent?.title ?? '');
-  const [type, setType] = useState<'schedule' | 'birthday'>(
-    existingEvent?.type ?? 'schedule'
-  );
-  const [isAnnual, setIsAnnual] = useState((existingEvent?.is_annual ?? 0) === 1);
-  const [exportToNative, setExportToNative] = useState(false);
+  const [title, setTitle] = useState('');
+  const [notes, setNotes] = useState('');
+  const [isAllDay, setIsAllDay] = useState(true);
+  const [selectedDate, setSelectedDate] = useState<Date>(() => {
+    if (initialDateStr) {
+      const d = new Date(initialDateStr + 'T00:00:00');
+      return isNaN(d.getTime()) ? today : d;
+    }
+    return today;
+  });
   const [showPicker, setShowPicker] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  const dateStr = toDateStr(selectedDate);
+  const [writableCalendars, setWritableCalendars] = useState<Calendar.Calendar[]>([]);
+  const [selectedCalendarId, setSelectedCalendarId] = useState<string>(defaultCalendarId ?? '');
+
+  useEffect(() => {
+    (async () => {
+      const cals = await getWritableCalendars();
+      setWritableCalendars(cals);
+      if (!selectedCalendarId && cals.length > 0) {
+        setSelectedCalendarId(cals[0].id);
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
+    if (!isEdit || !eventId) return;
+    (async () => {
+      try {
+        const ev = await Calendar.getEventAsync(eventId);
+        if (ev) {
+          setTitle(ev.title ?? '');
+          setNotes(ev.notes ?? '');
+          setIsAllDay(ev.allDay ?? true);
+          setSelectedDate(new Date(ev.startDate));
+          setSelectedCalendarId(ev.calendarId);
+        }
+      } catch {
+        useNativeCalendarStore.getState().purgeStaleEvent(eventId);
+        Alert.alert(
+          'イベントが見つかりません',
+          'この予定はカレンダーから削除されています。',
+          [{ text: 'OK', onPress: () => router.back() }]
+        );
+      }
+    })();
+  }, [eventId, isEdit]);
+
+  const dateDisplayStr = toDateString(selectedDate);
+
+  const buildStartEnd = () => {
+    const start = new Date(selectedDate);
+    const end = new Date(selectedDate);
+    if (isAllDay) {
+      start.setHours(0, 0, 0, 0);
+      end.setHours(23, 59, 59, 999);
+    } else {
+      start.setHours(9, 0, 0, 0);
+      end.setHours(10, 0, 0, 0);
+    }
+    return { start, end };
+  };
 
   const handleSave = async () => {
     if (!title.trim()) {
       Alert.alert('入力エラー', 'タイトルを入力してください');
       return;
     }
+    if (!selectedCalendarId) {
+      Alert.alert('入力エラー', 'カレンダーを選択してください');
+      return;
+    }
 
     try {
       setIsSaving(true);
+      const { start, end } = buildStartEnd();
 
-      if (isEdit && existingEvent) {
-        await editEvent(existingEvent.id, {
+      if (isEdit && eventId) {
+        await editEvent(eventId, {
           title: title.trim(),
-          date: dateStr,
-          type,
-          is_annual: isAnnual ? 1 : 0,
+          startDate: start,
+          endDate: end,
+          isAllDay,
+          notes: notes.trim() || null,
         });
       } else {
-        await addEvent({
+        await addEvent(selectedCalendarId, {
           title: title.trim(),
-          date: dateStr,
-          type,
-          is_annual: isAnnual ? 1 : 0,
+          startDate: start,
+          endDate: end,
+          isAllDay,
+          notes: notes.trim() || null,
         });
-      }
-
-      // ネイティブカレンダーへのエクスポート
-      if (exportToNative) {
-        await exportEventToNativeCalendar({ title: title.trim(), dateStr });
       }
 
       router.back();
@@ -156,6 +228,21 @@ export default function ModalScreen() {
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleDelete = () => {
+    if (!eventId) return;
+    Alert.alert('削除の確認', `「${title}」を削除しますか？`, [
+      { text: 'キャンセル', style: 'cancel' },
+      {
+        text: '削除',
+        style: 'destructive',
+        onPress: async () => {
+          await removeEvent(eventId, dateDisplayStr);
+          router.back();
+        },
+      },
+    ]);
   };
 
   return (
@@ -175,34 +262,11 @@ export default function ModalScreen() {
             {isEdit ? '予定を編集' : '予定を追加'}
           </Text>
           <Text style={styles.headerSubtitle}>
-            {isEdit ? '内容を変更して保存してください' : 'スケジュールや誕生日を登録しよう'}
+            {isEdit ? '内容を変更して保存してください' : 'ネイティブカレンダーに直接保存されます'}
           </Text>
         </View>
 
-        {/* ── 種類 ── */}
-        <View style={styles.formGroup}>
-          <Text style={styles.label}>種類</Text>
-          <View style={styles.typeSelector}>
-            {([
-              { value: 'schedule', label: '📌 予定', color: '#4ecdc4', bg: 'rgba(78,205,196,0.10)' },
-              { value: 'birthday', label: '🎂 誕生日', color: '#ff6b6b', bg: 'rgba(255,107,107,0.10)' },
-            ] as const).map((t) => {
-              const isActive = type === t.value;
-              return (
-                <TouchableOpacity
-                  key={t.value}
-                  style={[styles.typeButton, { borderColor: t.color, backgroundColor: isActive ? t.color : t.bg }]}
-                  onPress={() => setType(t.value)}
-                  activeOpacity={0.8}
-                >
-                  <Text style={[styles.typeText, isActive && styles.typeTextActive]}>{t.label}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        </View>
-
-        {/* ── 日付（カレンダーピッカー） ── */}
+        {/* ── 日付 ── */}
         <View style={styles.formGroup}>
           <Text style={styles.label}>📅 日付</Text>
           <TouchableOpacity
@@ -212,13 +276,12 @@ export default function ModalScreen() {
           >
             <View style={styles.datePickerLeft}>
               <Text style={styles.datePickerIcon}>📆</Text>
-              <Text style={styles.datePickerText}>{dateStr}</Text>
+              <Text style={styles.datePickerText}>{dateDisplayStr}</Text>
             </View>
             <Text style={styles.datePickerChevron}>›</Text>
           </TouchableOpacity>
         </View>
 
-        {/* カレンダーピッカー */}
         <DatePickerModal
           visible={showPicker}
           date={selectedDate}
@@ -240,43 +303,65 @@ export default function ModalScreen() {
           />
         </View>
 
-        {/* ── 毎年繰り返し ── */}
-        <View style={styles.toggleRow}>
-          <View>
-            <Text style={styles.toggleLabel}>🔁 毎年繰り返す</Text>
-            <Text style={styles.toggleHint}>誕生日などに便利</Text>
-          </View>
-          <Switch
-            value={isAnnual}
-            onValueChange={setIsAnnual}
-            trackColor={{ false: '#d1d5db', true: '#a5f3fc' }}
-            thumbColor={isAnnual ? '#0a7ea4' : '#9ca3af'}
+        {/* ── メモ ── */}
+        <View style={styles.formGroup}>
+          <Text style={styles.label}>📝 メモ（任意）</Text>
+          <TextInput
+            style={[styles.input, styles.notesInput]}
+            value={notes}
+            onChangeText={setNotes}
+            placeholder="メモを入力..."
+            placeholderTextColor="#bbb"
+            multiline
+            returnKeyType="default"
           />
         </View>
 
-        {/* ── 端末カレンダーへエクスポート ── */}
-        <View style={[styles.toggleRow, styles.toggleRowLast]}>
+        {/* ── 終日 ── */}
+        <View style={styles.toggleRow}>
           <View>
-            <Text style={styles.toggleLabel}>📲 端末カレンダーにも追加</Text>
-            <Text style={styles.toggleHint}>保存時にデバイスのカレンダーと同期</Text>
+            <Text style={styles.toggleLabel}>🕐 終日イベント</Text>
+            <Text style={styles.toggleHint}>オフにすると 9:00〜10:00 で登録</Text>
           </View>
           <Switch
-            value={exportToNative}
-            onValueChange={setExportToNative}
+            value={isAllDay}
+            onValueChange={setIsAllDay}
             trackColor={{ false: '#d1d5db', true: '#a5f3fc' }}
-            thumbColor={exportToNative ? '#0a7ea4' : '#9ca3af'}
+            thumbColor={isAllDay ? '#0a7ea4' : '#9ca3af'}
           />
         </View>
+
+        {/* ── カレンダー選択 ── */}
+        {!isEdit && (
+          <View style={[styles.formGroup, styles.toggleRowLast]}>
+            <Text style={styles.label}>📋 保存先カレンダー</Text>
+            <CalendarPicker
+              calendars={writableCalendars}
+              selectedId={selectedCalendarId}
+              onSelect={setSelectedCalendarId}
+            />
+          </View>
+        )}
 
         {/* ── ボタン ── */}
         <View style={styles.buttonRow}>
-          <TouchableOpacity
-            style={styles.cancelButton}
-            onPress={() => router.back()}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.cancelButtonText}>キャンセル</Text>
-          </TouchableOpacity>
+          {isEdit ? (
+            <TouchableOpacity
+              style={styles.deleteButton}
+              onPress={handleDelete}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.deleteButtonText}>🗑️ 削除</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={styles.cancelButton}
+              onPress={() => router.back()}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.cancelButtonText}>キャンセル</Text>
+            </TouchableOpacity>
+          )}
 
           <TouchableOpacity
             style={[styles.saveButton, isSaving && styles.saveButtonDisabled]}
@@ -291,6 +376,16 @@ export default function ModalScreen() {
             </LinearGradient>
           </TouchableOpacity>
         </View>
+
+        {isEdit && (
+          <TouchableOpacity
+            style={styles.cancelButtonFull}
+            onPress={() => router.back()}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.cancelButtonText}>キャンセル</Text>
+          </TouchableOpacity>
+        )}
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -309,16 +404,6 @@ const styles = StyleSheet.create({
   formGroup: { marginBottom: 20 },
   label: { fontSize: 15, fontWeight: '700', color: '#334155', marginBottom: 10, letterSpacing: 0.2 },
 
-  // 種類ボタン
-  typeSelector: { flexDirection: 'row', gap: 12 },
-  typeButton: {
-    flex: 1, paddingVertical: 13,
-    borderWidth: 2, borderRadius: 14, alignItems: 'center',
-  },
-  typeText: { fontSize: 15, fontWeight: '700', color: '#475569' },
-  typeTextActive: { color: '#fff' },
-
-  // 日付ピッカー
   datePickerButton: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     backgroundColor: '#fff', borderWidth: 1.5, borderColor: '#e2e8f0',
@@ -331,7 +416,6 @@ const styles = StyleSheet.create({
   datePickerText: { fontSize: 18, fontWeight: '700', color: '#1a1a2e', letterSpacing: 0.5 },
   datePickerChevron: { fontSize: 22, color: '#94a3b8', fontWeight: '300' },
 
-  // iOS ピッカーモーダル
   pickerOverlay: {
     flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end',
   },
@@ -350,15 +434,14 @@ const styles = StyleSheet.create({
   pickerDone: { fontSize: 16, color: '#0a7ea4', fontWeight: '800' },
   iosSpinner: { height: 200 },
 
-  // テキスト入力
   input: {
     backgroundColor: '#fff', borderWidth: 1.5, borderColor: '#e2e8f0',
     borderRadius: 14, padding: 14, fontSize: 16, color: '#1a1a2e',
     shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.04, shadowRadius: 4, elevation: 1,
   },
+  notesInput: { minHeight: 80, textAlignVertical: 'top' },
 
-  // トグル行
   toggleRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     backgroundColor: '#fff', borderRadius: 14, padding: 16, marginBottom: 10,
@@ -369,14 +452,36 @@ const styles = StyleSheet.create({
   toggleLabel: { fontSize: 15, fontWeight: '600', color: '#334155' },
   toggleHint: { fontSize: 12, color: '#94a3b8', marginTop: 2 },
 
-  // ボタン
-  buttonRow: { flexDirection: 'row', gap: 12 },
+  calendarList: { gap: 8 },
+  calendarItem: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    backgroundColor: '#fff', borderRadius: 12, padding: 12,
+    borderWidth: 1.5, borderColor: '#e2e8f0',
+  },
+  calendarItemActive: { borderColor: '#0a7ea4', backgroundColor: 'rgba(10,126,164,0.06)' },
+  calendarDot: { width: 12, height: 12, borderRadius: 6 },
+  calendarName: { flex: 1, fontSize: 15, fontWeight: '500', color: '#334155' },
+  calendarNameActive: { fontWeight: '700', color: '#0a7ea4' },
+  calendarCheck: { fontSize: 15, color: '#0a7ea4', fontWeight: '800' },
+
+  buttonRow: { flexDirection: 'row', gap: 12, marginBottom: 10 },
   cancelButton: {
     flex: 1, paddingVertical: 15, borderRadius: 14,
     alignItems: 'center', backgroundColor: '#fff',
     borderWidth: 1.5, borderColor: '#e2e8f0',
   },
+  cancelButtonFull: {
+    paddingVertical: 15, borderRadius: 14,
+    alignItems: 'center', backgroundColor: '#fff',
+    borderWidth: 1.5, borderColor: '#e2e8f0',
+  },
   cancelButtonText: { fontSize: 16, fontWeight: '600', color: '#64748b' },
+  deleteButton: {
+    flex: 1, paddingVertical: 15, borderRadius: 14,
+    alignItems: 'center', backgroundColor: '#fff2f2',
+    borderWidth: 1.5, borderColor: '#fca5a5',
+  },
+  deleteButtonText: { fontSize: 16, fontWeight: '600', color: '#e63946' },
   saveButton: { flex: 2, borderRadius: 14, overflow: 'hidden' },
   saveButtonDisabled: { opacity: 0.6 },
   saveGradient: { paddingVertical: 15, alignItems: 'center' },
