@@ -1,46 +1,69 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { StyleSheet, View, PanResponder, Animated, Dimensions } from 'react-native';
+import {
+  StyleSheet,
+  View,
+  PanResponder,
+  Animated,
+  Dimensions,
+  Text,
+} from 'react-native';
 import { Image } from 'expo-image';
+import { BlurView } from 'expo-blur';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
 
-import { ThemedText } from '@/components/themed-text';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useEventStore } from '@/store/eventStore';
 
-const dayOfWeekStr = ['日', '月', '火', '水', '木', '金', '土'];
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const CARD_WIDTH = SCREEN_WIDTH * 0.88;
 
-const getBackgroundColor = (theme: string) => {
+const DAY_OF_WEEK = ['日', '月', '火', '水', '木', '金', '土'];
+
+const getBackgroundColor = (theme: string): [string, string] => {
   switch (theme) {
-    case 'corkboard': return '#C89D7C'; 
-    case 'wood': return '#6D4C41';      
+    case 'corkboard':
+      return ['#C89D7C', '#A0785A'];
+    case 'wood':
+      return ['#8D6E63', '#5D4037'];
     case 'light-gray':
     default:
-      return '#e8eaed';                 
+      return ['#E8EDF2', '#D0D7E0'];
   }
 };
 
 const getDayColor = (dayIndex: number) => {
-  if (dayIndex === 0) return '#e63946'; // Sun
-  if (dayIndex === 6) return '#1d3557'; // Sat
-  return '#111';
+  if (dayIndex === 0) return '#e63946';
+  if (dayIndex === 6) return '#2563eb';
+  return '#1a1a2e';
 };
+
+const getDayAccent = (dayIndex: number) => {
+  if (dayIndex === 0) return 'rgba(230,57,70,0.08)';
+  if (dayIndex === 6) return 'rgba(37,99,235,0.08)';
+  return 'transparent';
+};
+
+// YYYY-MM-DD 形式に変換するユーティリティ
+const toDateStr = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { isBgEnabled, bgUri: fixedBgUri, bgUris, bgMode, appTheme } = useSettingsStore();
   const { getEventsForDate } = useEventStore();
-  useEventStore((state) => state.events); // to trigger re-render on change
+  useEventStore((state) => state.events); // re-render trigger
 
-  const [currentDateObj, setCurrentDateObj] = useState(new Date());
+  const today = new Date();
 
+  const [currentDateObj, setCurrentDateObj] = useState(today);
   const [prevDateObj, setPrevDateObj] = useState(() => {
-    const d = new Date();
+    const d = new Date(today);
     d.setDate(d.getDate() - 1);
     return d;
   });
-
   const [nextDateObj, setNextDateObj] = useState(() => {
-    const d = new Date();
+    const d = new Date(today);
     d.setDate(d.getDate() + 1);
     return d;
   });
@@ -50,14 +73,9 @@ export default function HomeScreen() {
 
   useEffect(() => {
     if (lastDateRef.current.getTime() !== currentDateObj.getTime()) {
-      // Date has been updated and rendered by React.
-      // Now it's safe to reset the pan and update the background cards.
       lastDateRef.current = currentDateObj;
-      
-      // Reset animations instantly
       pan.setValue({ x: 0, y: 0 });
-      
-      // Update background cards relative to the new current date
+
       setNextDateObj(() => {
         const d = new Date(currentDateObj);
         d.setDate(d.getDate() + 1);
@@ -73,21 +91,16 @@ export default function HomeScreen() {
 
   const panResponder = useRef(
     PanResponder.create({
-      onMoveShouldSetPanResponder: (_, gestureState) => {
-        return Math.abs(gestureState.dy) > 10 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx);
-      },
-      onPanResponderGrant: () => {
-      },
-      onPanResponderMove: Animated.event(
-        [null, { dy: pan.y }],
-        { useNativeDriver: false }
-      ),
-      onPanResponderRelease: (_, gestureState) => {
-        if (gestureState.dy > 120) {
-          // Tear off -> Next Day
+      onMoveShouldSetPanResponder: (_, gs) =>
+        Math.abs(gs.dy) > 10 && Math.abs(gs.dy) > Math.abs(gs.dx),
+      onPanResponderMove: Animated.event([null, { dy: pan.y }], {
+        useNativeDriver: false,
+      }),
+      onPanResponderRelease: (_, gs) => {
+        if (gs.dy > 120) {
           Animated.timing(pan.y, {
-            toValue: 800,
-            duration: 250,
+            toValue: 900,
+            duration: 260,
             useNativeDriver: true,
           }).start(() => {
             setCurrentDateObj((prev) => {
@@ -96,11 +109,10 @@ export default function HomeScreen() {
               return d;
             });
           });
-        } else if (gestureState.dy < -120) {
-          // Put back -> Previous Day
+        } else if (gs.dy < -120) {
           Animated.timing(pan.y, {
-            toValue: -800, // fly all the way up to 0 position
-            duration: 250,
+            toValue: -900,
+            duration: 260,
             useNativeDriver: true,
           }).start(() => {
             setCurrentDateObj((prev) => {
@@ -110,7 +122,6 @@ export default function HomeScreen() {
             });
           });
         } else {
-          // Spring back to center
           Animated.spring(pan, {
             toValue: { x: 0, y: 0 },
             useNativeDriver: true,
@@ -122,96 +133,159 @@ export default function HomeScreen() {
   ).current;
 
   const currentTranslateY = pan.y.interpolate({
-    inputRange: [0, 800],
-    outputRange: [0, 800],
+    inputRange: [0, 900],
+    outputRange: [0, 900],
     extrapolate: 'clamp',
   });
-
   const currentRotateZ = pan.y.interpolate({
-    inputRange: [0, 800],
-    outputRange: ['0deg', '15deg'],
+    inputRange: [0, 900],
+    outputRange: ['0deg', '14deg'],
     extrapolate: 'clamp',
   });
-
   const prevTranslateY = pan.y.interpolate({
-    inputRange: [-800, 0],
-    outputRange: [0, 800],
+    inputRange: [-900, 0],
+    outputRange: [0, 900],
     extrapolate: 'clamp',
   });
-
   const prevRotateZ = pan.y.interpolate({
-    inputRange: [-800, 0],
-    outputRange: ['0deg', '-15deg'],
+    inputRange: [-900, 0],
+    outputRange: ['0deg', '-14deg'],
     extrapolate: 'clamp',
   });
 
   const getDisplayedBgUri = (dObj: Date) => {
     if (!isBgEnabled || bgUris.length === 0) return null;
-    if (bgMode === 'fixed') {
-      return fixedBgUri || bgUris[0];
-    }
-    const seed = dObj.getFullYear() * 10000 + (dObj.getMonth() + 1) * 100 + dObj.getDate();
+    if (bgMode === 'fixed') return fixedBgUri || bgUris[0];
+    const seed =
+      dObj.getFullYear() * 10000 +
+      (dObj.getMonth() + 1) * 100 +
+      dObj.getDate();
     return bgUris[seed % bgUris.length];
   };
 
+  const isToday = (dObj: Date) =>
+    toDateStr(dObj) === toDateStr(today);
+
   const renderCardContent = (dObj: Date) => {
-    const y = dObj.getFullYear();
-    const mDisplay = dObj.getMonth() + 1;
-    const dDisplay = dObj.getDate();
-    
-    const mStr = String(mDisplay).padStart(2, '0');
-    const dStr = String(dDisplay).padStart(2, '0');
-    const dateStr = `${y}-${mStr}-${dStr}`;
-    const dayStr = dayOfWeekStr[dObj.getDay()];
+    const year = dObj.getFullYear();
+    const month = dObj.getMonth() + 1;
+    const date = dObj.getDate();
+    const dateStr = toDateStr(dObj);
+    const dayStr = DAY_OF_WEEK[dObj.getDay()];
     const todaysEvents = getEventsForDate(dateStr);
     const bgUri = getDisplayedBgUri(dObj);
     const dayColor = getDayColor(dObj.getDay());
+    const dayAccent = getDayAccent(dObj.getDay());
+    const todayFlag = isToday(dObj);
 
     return (
       <View style={styles.cardInner}>
+        {/* ── バインダー部（穴） ── */}
         <View style={styles.bindingContainer}>
-          {[1, 2, 3, 4, 5, 6].map(i => (
+          {[1, 2, 3, 4, 5, 6].map((i) => (
             <View key={i} style={styles.hole} />
           ))}
         </View>
 
+        {/* ── 画像ヘッダー or グラデーションフォールバック ── */}
         {bgUri ? (
           <View style={styles.imageHeader}>
-            <Image source={{ uri: bgUri }} style={styles.cardImage} contentFit="cover" />
+            <Image
+              source={{ uri: bgUri }}
+              style={styles.cardImage}
+              contentFit="cover"
+            />
+            {/* 画像下部のグラデーションオーバーレイ */}
+            <LinearGradient
+              colors={['transparent', 'rgba(255,255,255,0.85)']}
+              style={styles.imageGradient}
+            />
           </View>
-        ) : null}
+        ) : (
+          <View style={[styles.imageHeader, styles.noImageHeader]}>
+            <LinearGradient
+              colors={getBackgroundColor(appTheme)}
+              style={StyleSheet.absoluteFill}
+            />
+            {/* 装飾的な季節感テキスト */}
+            <Text style={styles.seasonDecor}>
+              {month <= 3 ? '🌸' : month <= 6 ? '🌿' : month <= 9 ? '🌻' : '🍁'}
+            </Text>
+          </View>
+        )}
 
-        <View style={[styles.dateArea, !bgUri && styles.dateAreaLarge]}>
-          <ThemedText style={styles.yearMonth}>{`${y}年 ${mDisplay}月`}</ThemedText>
-          
+        {/* ── 日付エリア ── */}
+        <View
+          style={[
+            styles.dateArea,
+            { backgroundColor: dayAccent },
+            !bgUri && styles.dateAreaCompact,
+          ]}
+        >
+          {/* 今日バッジ */}
+          {todayFlag && (
+            <View style={styles.todayBadge}>
+              <Text style={styles.todayBadgeText}>TODAY</Text>
+            </View>
+          )}
+
+          <Text style={styles.yearMonth}>{`${year}年 ${month}月`}</Text>
+
           <View style={styles.dateRow}>
-            <ThemedText 
+            <Text
               style={[
-                styles.day, 
-                { 
-                  color: dayColor, 
-                  fontSize: bgUri ? 60 : 90, 
-                  lineHeight: bgUri ? 70 : 100 
-                }
+                styles.day,
+                { color: dayColor, fontSize: bgUri ? 62 : 82 },
               ]}
               adjustsFontSizeToFit
               numberOfLines={1}
             >
-              {dDisplay}
-            </ThemedText>
-            <ThemedText style={[styles.dayOfWeek, { color: dayColor }]}>({dayStr})</ThemedText>
+              {date}
+            </Text>
+            <Text style={[styles.dayOfWeek, { color: dayColor }]}>
+              ({dayStr})
+            </Text>
           </View>
 
           <View style={styles.divider} />
 
+          {/* ── 予定リスト ── */}
           <View style={styles.eventsContainer}>
             {todaysEvents.length === 0 ? (
-              <ThemedText style={styles.noEventsText}>予定はありません</ThemedText>
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyIcon}>📅</Text>
+                <Text style={styles.noEventsText}>今日の予定はありません</Text>
+                <Text style={styles.noEventsHint}>＋ から予定を追加できます</Text>
+              </View>
             ) : (
               todaysEvents.map((evt) => (
                 <View key={evt.id} style={styles.eventRow}>
-                  <View style={[styles.eventDot, { backgroundColor: evt.type === 'birthday' ? '#ff6b6b' : '#4ecdc4' }]} />
-                  <ThemedText style={styles.eventText} numberOfLines={2}>{evt.title}</ThemedText>
+                  <View
+                    style={[
+                      styles.eventTag,
+                      {
+                        backgroundColor:
+                          evt.type === 'birthday'
+                            ? 'rgba(255,107,107,0.12)'
+                            : 'rgba(78,205,196,0.12)',
+                        borderLeftColor:
+                          evt.type === 'birthday' ? '#ff6b6b' : '#4ecdc4',
+                      },
+                    ]}
+                  >
+                    <Text style={styles.eventIcon}>
+                      {evt.type === 'birthday' ? '🎂' : '📌'}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.eventText,
+                        { color: evt.type === 'birthday' ? '#c0392b' : '#16a085' },
+                      ]}
+                      numberOfLines={2}
+                    >
+                      {evt.title}
+                    </Text>
+                  </View>
                 </View>
               ))
             )}
@@ -221,53 +295,66 @@ export default function HomeScreen() {
     );
   };
 
+  const [bgGradient] = useState(getBackgroundColor(appTheme));
+
   return (
-    <View 
-      style={[styles.container, { backgroundColor: getBackgroundColor(appTheme) }]} 
+    <LinearGradient
+      colors={bgGradient}
+      style={styles.container}
       {...panResponder.panHandlers}
     >
-      <View style={[styles.innerContainer, { paddingTop: insets.top, paddingBottom: insets.bottom + 80 }]}>
-        
-        {/* Layer 1: Next Card (Behind) */}
-        <Animated.View style={[styles.calendarCard, styles.absoluteCard]}>
+      <View
+        style={[
+          styles.innerContainer,
+          { paddingTop: insets.top + 8, paddingBottom: insets.bottom + 88 },
+        ]}
+      >
+        {/* スワイプヒント */}
+        <View style={styles.swipeHint}>
+          <Text style={styles.swipeHintText}>↕ スワイプで日付を切り替え</Text>
+        </View>
+
+        {/* Layer 1: 次の日（裏） */}
+        <Animated.View style={[styles.calendarCard, styles.absoluteCard, styles.shadowCard]}>
           {renderCardContent(nextDateObj)}
         </Animated.View>
 
-        {/* Layer 2: Current Card (Middle) - Falls down on swipe down */}
+        {/* Layer 2: 今日（中間）— 下スワイプで落ちる */}
         <Animated.View
           style={[
-            styles.calendarCard, 
+            styles.calendarCard,
             styles.absoluteCard,
-            { 
+            styles.shadowCard,
+            {
               transform: [
                 { translateY: currentTranslateY },
-                { rotateZ: currentRotateZ }
-              ] 
-            }
+                { rotateZ: currentRotateZ },
+              ],
+            },
           ]}
         >
           {renderCardContent(currentDateObj)}
         </Animated.View>
 
-        {/* Layer 3: Previous Card (Front) - Comes from bottom on swipe up */}
+        {/* Layer 3: 前の日（手前）— 上スワイプで出てくる */}
         <Animated.View
           style={[
-            styles.calendarCard, 
+            styles.calendarCard,
             styles.absoluteCard,
-            { 
+            styles.shadowCard,
+            {
               transform: [
                 { translateY: prevTranslateY },
-                { rotateZ: prevRotateZ }
+                { rotateZ: prevRotateZ },
               ],
-            }
+            },
           ]}
-          pointerEvents="none" // Ensure it doesn't block touches when invisible
+          pointerEvents="none"
         >
           {renderCardContent(prevDateObj)}
         </Animated.View>
-
       </View>
-    </View>
+    </LinearGradient>
   );
 }
 
@@ -280,65 +367,121 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  swipeHint: {
+    position: 'absolute',
+    top: 12,
+    alignSelf: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 5,
+    backgroundColor: 'rgba(0,0,0,0.12)',
+    borderRadius: 20,
+    zIndex: 10,
+  },
+  swipeHintText: {
+    fontSize: 11,
+    color: 'rgba(0,0,0,0.45)',
+    fontWeight: '500',
+    letterSpacing: 0.3,
+  },
   calendarCard: {
-    width: '88%',
-    backgroundColor: '#fff',
-    borderRadius: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.15,
-    shadowRadius: 20,
-    elevation: 10,
+    width: CARD_WIDTH,
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
     overflow: 'hidden',
   },
   absoluteCard: {
     position: 'absolute',
   },
+  shadowCard: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.18,
+    shadowRadius: 24,
+    elevation: 12,
+  },
   cardInner: {
     width: '100%',
   },
+  // ── バインダー ──
   bindingContainer: {
-    height: 30,
-    backgroundColor: '#f8f9fa',
+    height: 32,
+    backgroundColor: '#f1f3f5',
     flexDirection: 'row',
-    justifyContent: 'space-around',
+    justifyContent: 'space-evenly',
     alignItems: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-    paddingHorizontal: 20,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#e0e0e0',
+    paddingHorizontal: 24,
   },
   hole: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: '#333',
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: '#2c2c2c',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.5,
-    shadowRadius: 1,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.6,
+    shadowRadius: 3,
+    elevation: 3,
   },
+  // ── 画像ヘッダー ──
   imageHeader: {
     width: '100%',
-    aspectRatio: 1.2,
-    backgroundColor: '#ddd',
+    aspectRatio: 1.6,
+    backgroundColor: '#e0e0e0',
+    overflow: 'hidden',
+  },
+  noImageHeader: {
+    aspectRatio: 2.2,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   cardImage: {
     width: '100%',
     height: '100%',
   },
-  dateArea: {
-    padding: 20,
-    alignItems: 'center',
+  imageGradient: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: '50%',
   },
-  dateAreaLarge: {
-    paddingVertical: 50,
+  seasonDecor: {
+    fontSize: 48,
+    opacity: 0.5,
+  },
+  // ── 日付エリア ──
+  dateArea: {
+    paddingHorizontal: 20,
+    paddingTop: 14,
+    paddingBottom: 18,
+    alignItems: 'center',
+    borderRadius: 0,
+  },
+  dateAreaCompact: {
+    paddingTop: 20,
+    paddingBottom: 24,
+  },
+  todayBadge: {
+    backgroundColor: '#e63946',
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 20,
+    marginBottom: 6,
+  },
+  todayBadgeText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1.5,
   },
   yearMonth: {
-    fontSize: 22,
+    fontSize: 15,
     fontWeight: '600',
-    color: '#555',
-    marginBottom: 5,
+    color: '#888',
+    letterSpacing: 0.5,
+    marginBottom: 2,
   },
   dateRow: {
     flexDirection: 'row',
@@ -348,45 +491,71 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
   },
   day: {
-    fontWeight: 'bold',
+    fontWeight: '800',
+    letterSpacing: -2,
+    lineHeight: 95,
   },
   dayOfWeek: {
-    fontSize: 24,
-    fontWeight: '600',
-    marginLeft: 8,
+    fontSize: 22,
+    fontWeight: '700',
+    marginLeft: 6,
     flexShrink: 1,
+    letterSpacing: 0.5,
   },
   divider: {
-    width: '80%',
-    height: 2,
-    backgroundColor: '#f0f0f0',
-    marginVertical: 20,
+    width: '75%',
+    height: 1.5,
+    backgroundColor: '#ececec',
+    marginVertical: 14,
+    borderRadius: 1,
   },
+  // ── 予定 ──
   eventsContainer: {
     width: '100%',
     alignItems: 'center',
     minHeight: 60,
+    paddingBottom: 4,
+  },
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: 8,
+    gap: 4,
+  },
+  emptyIcon: {
+    fontSize: 28,
+    marginBottom: 4,
   },
   noEventsText: {
-    fontSize: 16,
-    color: '#999',
-    fontStyle: 'italic',
+    fontSize: 14,
+    color: '#aaa',
+    fontWeight: '500',
+  },
+  noEventsHint: {
+    fontSize: 12,
+    color: '#ccc',
+    marginTop: 2,
   },
   eventRow: {
+    width: '100%',
+    marginBottom: 8,
+    paddingHorizontal: 4,
+  },
+  eventTag: {
     flexDirection: 'row',
     alignItems: 'center',
-    width: '90%',
-    marginBottom: 10,
+    borderLeftWidth: 3,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    gap: 8,
   },
-  eventDot: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    marginRight: 12,
+  eventIcon: {
+    fontSize: 16,
   },
   eventText: {
-    fontSize: 18,
-    color: '#333',
+    fontSize: 15,
+    fontWeight: '600',
     flex: 1,
+    lineHeight: 20,
   },
 });
