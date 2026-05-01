@@ -33,3 +33,28 @@
 ## 4. プロジェクト特有の技術的注意点
 * 画像はDB（SQLite）にバイナリ保存せず、`expo-file-system` でローカルに保存し、そのURI文字列のみをDBに保存してください。
 * UIは「写真が主役」です。Z-IndexやOpacity、`expo-blur` などのBlurViewを活用し、要素が背景を隠しすぎないよう注意してください。
+
+## 5. 開発環境のトラブルシュート
+
+### 5.1 Expo Go で動作確認する際は最初からトンネルモードを使う
+本プロジェクトは **Windows PC + iPhone の Expo Go** で動作確認する構成。`npx expo start` のデフォルト (LAN モード) は Windows Defender ファイアウォールが node.exe をブロックしたり、PC と iPhone が異なる Wi-Fi 帯域 (2.4GHz / 5GHz の別 SSID) に居ることで `Unknown error: The request timed out.` で失敗しがち。
+
+**推奨:** ユーザーに動作確認を依頼するときは、最初から以下のコマンドを案内する。
+
+```bash
+npx expo start --tunnel
+```
+
+- 初回は `@expo/ngrok` のインストール確認が出るので `y` で進める
+- QR コードが `exp://xxx.xxx.exp.direct` 形式で出る (LAN モードの `exp://192.168.x.x:8081` ではない)
+- ファイアウォールや Wi-Fi 設定に依存しないため、最も確実に繋がる
+
+### 5.2 LAN モードで動かしたい場合の切り分け順
+帯域効率や応答速度のため LAN モードを使いたい場合の確認項目:
+1. iPhone のブラウザで `http://<PCのIP>:8081` を開いて Metro の welcome ページが見えるか
+2. Windows Defender ファイアウォールで node.exe / ポート 8081 を許可
+3. PC と iPhone が **同じ SSID** に接続されているか (5GHz / 2.4GHz の別 SSID 問題)
+4. ルーターの「クライアント分離 / AP isolation」が無効か
+
+### 5.3 ポート 8081 が既に使われている場合
+`Port 8081 is being used by another process` のエラーが出たら、別ターミナルに残った Expo dev server がいる可能性が高い。`tasklist` / `netstat -ano | grep :8081` で PID を特定して終了するか、`npx expo start --tunnel --port 8082` 等で別ポート起動。
