@@ -1,9 +1,9 @@
 {
   "expo": {
-"name": "Tear-off-Calendar",
-    "owner": "tatsunobu",            
-    "slug": "tear-off-calendar",     
-     "version": "1.0.0",
+    "name": "Tear-off-Calendar",
+    "owner": "tatsunobu",
+    "slug": "tear-off-calendar",
+    "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "tearoffcalendar",
@@ -20,7 +20,11 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.READ_CALENDAR",
+        "android.permission.WRITE_CALENDAR"
+      ]
     },
     "web": {
       "output": "static",
@@ -52,6 +56,12 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "8855a533-d6c9-41bf-a41e-6d8ea90882af"
+      }
     }
   }
 }
