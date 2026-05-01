@@ -28,7 +28,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   bgUri: null,
   bgUris: [],
   bgMode: 'fixed',
-  appTheme: 'light-gray',
+  appTheme: 'washi',
   selectedCalendarIds: [],
   defaultCalendarId: null,
   isLoading: false,

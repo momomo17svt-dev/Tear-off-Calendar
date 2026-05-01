@@ -24,9 +24,14 @@ import { useNativeCalendarStore } from '@/store/nativeCalendarStore';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 
 const THEMES = [
+  { key: 'washi',      label: '和紙',  emoji: '📄', colors: ['#FAF7F0', '#F0E8D8'] as [string, string] },
   { key: 'light-gray', label: 'グレー', emoji: '🩶', colors: ['#E8EDF2', '#D0D7E0'] as [string, string] },
-  { key: 'corkboard', label: 'コルク', emoji: '🪵', colors: ['#C89D7C', '#A0785A'] as [string, string] },
-  { key: 'wood', label: '木目', emoji: '🌲', colors: ['#8D6E63', '#5D4037'] as [string, string] },
+  { key: 'corkboard',  label: 'コルク', emoji: '🪵', colors: ['#C89D7C', '#A0785A'] as [string, string] },
+  { key: 'wood',       label: '木目',  emoji: '🌲', colors: ['#8D6E63', '#5D4037'] as [string, string] },
+  { key: 'sakura',     label: '桜',    emoji: '🌸', colors: ['#FCEEF3', '#F9D0DF'] as [string, string] },
+  { key: 'matcha',     label: '抹茶',  emoji: '🍵', colors: ['#D8EDD8', '#B8D4B0'] as [string, string] },
+  { key: 'aizome',     label: '藍染',  emoji: '🫙', colors: ['#5B8DB8', '#3A6A96'] as [string, string] },
+  { key: 'momiji',     label: '紅葉',  emoji: '🍁', colors: ['#EDA878', '#D4764A'] as [string, string] },
 ] as const;
 
 export default function SettingsScreen() {

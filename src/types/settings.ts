@@ -12,7 +12,8 @@ export interface SettingRow {
   value: string | null;
 }
 
-export type AppTheme = 'light-gray' | 'corkboard' | 'wood';
+export type AppTheme = 'light-gray' | 'corkboard' | 'wood'
+  | 'washi' | 'sakura' | 'matcha' | 'aizome' | 'momiji';
 
 export interface AppSettings {
   isBgEnabled: boolean;

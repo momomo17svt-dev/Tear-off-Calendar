@@ -1,45 +1,39 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import * as Calendar from 'expo-calendar';
+import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useFocusEffect } from 'expo-router';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  StyleSheet,
-  View,
-  PanResponder,
-  Animated,
-  Dimensions,
-  Text,
-  TouchableOpacity,
-  ScrollView,
   ActionSheetIOS,
   Alert,
+  Animated,
+  Dimensions,
+  PanResponder,
   Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
-import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
-import * as Calendar from 'expo-calendar';
-import { useFocusEffect } from 'expo-router';
 
-import { useSettingsStore } from '@/store/settingsStore';
 import { useNativeCalendarStore } from '@/store/nativeCalendarStore';
+import { useNavigationStore } from '@/store/navigationStore';
+import { useSettingsStore } from '@/store/settingsStore';
 import type { NativeCalendarEvent } from '@/types/event';
+import { getBackgroundGradient } from '@/utils/theme';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const CARD_WIDTH = SCREEN_WIDTH * 0.88;
 const CARD_HEIGHT = SCREEN_HEIGHT * 0.70;
-const IMAGE_HEADER_H = CARD_HEIGHT * 0.36;
-const NO_IMAGE_HEADER_H = CARD_HEIGHT * 0.18;
+const IMAGE_HEADER_H = CARD_HEIGHT * 0.50;
+const NO_IMAGE_HEADER_H = CARD_HEIGHT * 0.45;
 const BINDING_H = 32;
-const DATE_SECTION_H = 150;
 
 const DAY_OF_WEEK = ['日', '月', '火', '水', '木', '金', '土'];
 const MAX_COLLAPSED_EVENTS = 3;
 
-const getBackgroundGradient = (theme: string): [string, string] => {
-  switch (theme) {
-    case 'corkboard': return ['#C89D7C', '#A0785A'];
-    case 'wood':      return ['#8D6E63', '#5D4037'];
-    default:          return ['#E8EDF2', '#D0D7E0'];
-  }
-};
 
 const getDayColor = (day: number) => {
   if (day === 0) return '#e63946';
@@ -185,15 +179,27 @@ export default function HomeScreen() {
   const { getEventsForDate, removeEvent } = useNativeCalendarStore();
   useNativeCalendarStore((state) => state.eventsByDate);
 
+  const { jumpDate, setJumpDate } = useNavigationStore();
+
   const today = new Date();
   const [currentDateObj, setCurrentDateObj] = useState(today);
   const [prevDateObj, setPrevDateObj] = useState(() => { const d = new Date(today); d.setDate(d.getDate() - 1); return d; });
   const [nextDateObj, setNextDateObj] = useState(() => { const d = new Date(today); d.setDate(d.getDate() + 1); return d; });
   const [selectedEvent, setSelectedEvent] = useState<NativeCalendarEvent | null>(null);
 
+  useEffect(() => {
+    if (jumpDate) {
+      const [y, m, d] = jumpDate.split('-').map(Number);
+      setCurrentDateObj(new Date(y, m - 1, d));
+      setJumpDate(null);
+    }
+  }, [jumpDate, setJumpDate]);
+
   useFocusEffect(
     useCallback(() => {
-      useNativeCalendarStore.getState().fetchAll();
+      if (Platform.OS !== 'web') {
+        useNativeCalendarStore.getState().fetchAll();
+      }
     }, [])
   );
 
@@ -254,7 +260,11 @@ export default function HomeScreen() {
         },
         async (idx) => {
           if (idx === 1) {
-            await Calendar.editEventInCalendarAsync({ id: evt.id });
+            try {
+              await Calendar.editEventInCalendarAsync({ id: evt.id });
+            } catch {
+              Alert.alert('予定が見つかりません', 'この予定はすでに削除されています。');
+            }
             useNativeCalendarStore.getState().fetchAll();
           }
           if (idx === 2) handleDelete(evt);
@@ -273,7 +283,11 @@ export default function HomeScreen() {
   };
 
   const handleEdit = async (evt: NativeCalendarEvent) => {
-    await Calendar.editEventInCalendarAsync({ id: evt.id });
+    try {
+      await Calendar.editEventInCalendarAsync({ id: evt.id });
+    } catch {
+      Alert.alert('予定が見つかりません', 'この予定はすでに削除されています。');
+    }
     useNativeCalendarStore.getState().fetchAll();
   };
 
@@ -290,7 +304,9 @@ export default function HomeScreen() {
     const events    = getEventsForDate(dateStr);
 
     const imageH = bgUri ? IMAGE_HEADER_H : NO_IMAGE_HEADER_H;
-    const eventsAreaH = CARD_HEIGHT - BINDING_H - imageH - DATE_SECTION_H - 16;
+    const eventsAreaH = CARD_HEIGHT - BINDING_H - imageH - 70;
+
+    const MONTHS = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
 
     return (
       <View style={[styles.cardInner, { height: CARD_HEIGHT }]}>
@@ -303,46 +319,48 @@ export default function HomeScreen() {
           <View style={[styles.imageHeader, { height: imageH }]}>
             <Image source={{ uri: bgUri }} style={StyleSheet.absoluteFill} contentFit="cover" />
             <LinearGradient
-              colors={['transparent', 'rgba(255,255,255,0.85)']}
-              style={[styles.imageGradient, { height: imageH * 0.5 }]}
+              colors={['transparent', 'rgba(0,0,0,0.55)']}
+              style={[styles.imageGradient, { height: imageH * 0.65 }]}
             />
+            <View style={styles.dateOnPhoto}>
+              {todayFlag && (
+                <View style={styles.todayBadge}>
+                  <Text style={styles.todayBadgeText}>TODAY</Text>
+                </View>
+              )}
+              <Text style={styles.monthDayOnPhoto}>{month}月{date}日</Text>
+              <Text style={styles.dayOfWeekOnPhoto}>{dayStr}曜日</Text>
+            </View>
           </View>
         ) : (
           <View style={[styles.noImageHeader, { height: imageH }]}>
             <LinearGradient colors={getBackgroundGradient(appTheme)} style={StyleSheet.absoluteFill} />
-            <Text style={styles.seasonDecor}>
-              {month <= 3 ? '🌸' : month <= 6 ? '🌿' : month <= 9 ? '🌻' : '🍁'}
-            </Text>
+            <View style={styles.dateOnNoImage}>
+              {todayFlag && (
+                <View style={styles.todayBadge}>
+                  <Text style={styles.todayBadgeText}>TODAY</Text>
+                </View>
+              )}
+              <Text style={styles.yearMonth}>{year}年 {month}月</Text>
+              <Text style={[styles.day, { color: dayColor }]}>{date}</Text>
+              <Text style={[styles.dayOfWeek, { color: dayColor }]}>{dayStr}曜日</Text>
+            </View>
           </View>
         )}
 
-        <View style={[styles.dateSection, { height: DATE_SECTION_H }]}>
-          {todayFlag && (
-            <View style={styles.todayBadge}>
-              <Text style={styles.todayBadgeText}>TODAY</Text>
-            </View>
-          )}
-          <Text style={styles.yearMonth}>{`${year}年 ${month}月`}</Text>
-          <View style={styles.dateRow}>
-            <Text
-              style={[styles.day, { color: dayColor }]}
-              adjustsFontSizeToFit
-              numberOfLines={1}
-            >
-              {date}
-            </Text>
-            <Text style={[styles.dayOfWeek, { color: dayColor }]}>({dayStr})</Text>
+        <View style={[styles.eventsSection, { flex: 1 }]}>
+          <View style={styles.scheduleHeader}>
+            <View style={styles.scheduleAccent} />
+            <Text style={styles.scheduleLabel}>SCHEDULE</Text>
           </View>
-        </View>
-
-        <View style={styles.divider} />
-
-        <View style={[styles.eventsContainer, { height: eventsAreaH }]}>
-          <EventList
-            events={events}
-            onEventPress={handleEventPress}
-            availableHeight={eventsAreaH}
-          />
+          <View style={{ flex: 1, overflow: 'hidden' }}>
+            <EventList
+              events={events}
+              onEventPress={handleEventPress}
+              availableHeight={eventsAreaH}
+            />
+          </View>
+          <Text style={styles.monthLabel}>{MONTHS[month - 1]} {year}</Text>
         </View>
 
       </View>
@@ -355,9 +373,9 @@ export default function HomeScreen() {
     <LinearGradient colors={bgGrad} style={styles.container} {...panResponder.panHandlers}>
       <View style={[styles.inner, { paddingTop: insets.top + 8, paddingBottom: insets.bottom + 88 }]}>
 
-        <View style={styles.swipeHintWrap}>
+        {/* <View style={styles.swipeHintWrap}>
           <Text style={styles.swipeHint}>↕ スワイプで日付切り替え</Text>
-        </View>
+        </View> */}
 
         <Animated.View style={[styles.card, styles.absolute, styles.shadow]}>
           {renderCard(nextDateObj)}
@@ -433,15 +451,22 @@ const styles = StyleSheet.create({
   imageHeader: { width: '100%', overflow: 'hidden', position: 'relative' },
   noImageHeader: { width: '100%', alignItems: 'center', justifyContent: 'center' },
   imageGradient: { position: 'absolute', bottom: 0, left: 0, right: 0 },
-  seasonDecor: { fontSize: 40, opacity: 0.5 },
 
-  dateSection: {
-    paddingHorizontal: 20,
-    paddingTop: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
+  dateOnPhoto: {
+    position: 'absolute', bottom: 16, right: 16, alignItems: 'flex-end',
   },
+  monthDayOnPhoto: {
+    fontSize: 48, fontWeight: '700', fontStyle: 'italic', color: '#fff',
+    textShadowColor: 'rgba(0,0,0,0.4)', textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 6, letterSpacing: -1,
+  },
+  dayOfWeekOnPhoto: {
+    fontSize: 15, fontWeight: '500', color: 'rgba(255,255,255,0.88)',
+    textShadowColor: 'rgba(0,0,0,0.3)', textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+
+  dateOnNoImage: { alignItems: 'center', justifyContent: 'center', width: '100%', paddingHorizontal: 20 },
   todayBadge: {
     backgroundColor: '#e63946', paddingHorizontal: 10,
     paddingVertical: 2, borderRadius: 20, marginBottom: 2,
@@ -452,20 +477,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'baseline',
     justifyContent: 'center', width: '100%', paddingHorizontal: 10,
   },
-  day: { fontWeight: '800', fontSize: 80, letterSpacing: -2, lineHeight: 88 },
+  day: { fontWeight: '800', fontSize: 90, letterSpacing: -2, lineHeight: 96 },
   dayOfWeek: { fontSize: 22, fontWeight: '700', marginLeft: 6 },
 
-  divider: {
-    width: '80%', height: 1.5, backgroundColor: '#ececec',
-    alignSelf: 'center',
-    borderRadius: 1,
+  eventsSection: {
+    width: '100%', paddingHorizontal: 20, paddingBottom: 12,
+    backgroundColor: '#F5EFE6',
   },
-
-  eventsContainer: {
-    width: '100%',
-    paddingHorizontal: 12,
-    paddingTop: 4,
-    overflow: 'hidden',
+  scheduleHeader: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    paddingTop: 14, paddingBottom: 10,
+  },
+  scheduleAccent: { width: 28, height: 2, backgroundColor: '#e63946', borderRadius: 1 },
+  scheduleLabel: { fontSize: 11, fontWeight: '700', color: '#888', letterSpacing: 2 },
+  monthLabel: {
+    fontSize: 10, fontWeight: '600', color: '#bbb',
+    letterSpacing: 2, textAlign: 'right', paddingTop: 4,
   },
   eventScrollContent: { paddingBottom: 4 },
 

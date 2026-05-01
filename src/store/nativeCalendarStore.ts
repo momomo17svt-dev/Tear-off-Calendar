@@ -119,14 +119,9 @@ export const useNativeCalendarStore = create<NativeCalendarState>((set, get) => 
     await get().refetchDate(date);
   },
 
-  removeEvent: async (eventId, date) => {
+  removeEvent: async (eventId, _date) => {
     await deleteNativeEvent(eventId);
-    set((s) => ({
-      eventsByDate: {
-        ...s.eventsByDate,
-        [date]: (s.eventsByDate[date] ?? []).filter((e) => e.id !== eventId),
-      },
-    }));
+    await get().fetchAll();
   },
 
   purgeStaleEvent: (eventId) => {
