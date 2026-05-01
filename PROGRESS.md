@@ -4,9 +4,9 @@
 各タスクが完了し、Pull Requestが作成された段階で、AI自身がこのファイルの `[ ]` を `[x]` に変更してください。
 
 ## フェーズ 1: プロジェクトの初期設定
-- [ ] Expoプロジェクトの初期化（`create-expo-app` または指定のボイラープレート）
-- [ ] 必要なライブラリのインストール（`expo-sqlite`, `zustand`, `expo-file-system`, ナビゲーション関連等）
-- [ ] フォルダ構成のセットアップ（`src/components`, `src/screens`, `src/store`, `src/db` 等）
+- [x] Expoプロジェクトの初期化（`create-expo-app` または指定のボイラープレート）
+- [x] 必要なライブラリのインストール（`expo-sqlite`, `zustand`, `expo-file-system`, ナビゲーション関連等）
+- [x] フォルダ構成のセットアップ（`src/components`, `src/screens`, `src/store`, `src/db` 等）
 
 ## フェーズ 2: データベースと状態管理の構築
 - [ ] SQLite初期化処理の実装（DB接続設定）
