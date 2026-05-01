@@ -21,7 +21,7 @@
    ユーザーからOKが出たら、以下の順序で処理を完結させてください。
    * `PROGRESS.md` の該当タスクを `[x]` に書き換え、ファイルを保存する。
    * 変更をコミットし、リモートにPushする。
-   * GitHub CLI (`gh pr create`) を使って main ブランチに対する Pull Request を作成する。PRのDescriptionには実装内容をマークダウンで詳細に記載する。
+   * GitHub CLI (`"C:\Program Files\GitHub CLI\gh.exe" pr create`) を使って main ブランチに対する Pull Request を作成する。環境によって `gh` にパスが通っていない場合があるため、必ずこのフルパスを使用してください。PRのDescriptionには実装内容をマークダウンで詳細に記載する。
 5. **次のタスクの提案:**
    PR作成後、「タスク〇〇が完了しました。次は `PROGRESS.md` にある〇〇のタスクに進みますか？」とユーザーに提案してください。
 
@@ -58,3 +58,19 @@ npx expo start --tunnel
 
 ### 5.3 ポート 8081 が既に使われている場合
 `Port 8081 is being used by another process` のエラーが出たら、別ターミナルに残った Expo dev server がいる可能性が高い。`tasklist` / `netstat -ano | grep :8081` で PID を特定して終了するか、`npx expo start --tunnel --port 8082` 等で別ポート起動。
+
+### 5.4 GitHub CLI (`gh`) の呼び出し
+このマシンでは `gh` が PATH に通っていないため、`gh` だけで呼ぶと `command not found` になる。**Bash からはフルパスをクオート付きで叩く**こと。
+
+```bash
+"/c/Program Files/GitHub CLI/gh.exe" pr create --base main --head <branch> --title "..." --body "..."
+"/c/Program Files/GitHub CLI/gh.exe" auth status
+```
+
+PowerShell から呼ぶ場合は call operator (`&`) 経由:
+
+```powershell
+& "C:\Program Files\GitHub CLI\gh.exe" pr create ...
+```
+
+認証は keyring に保持されている（`Tatsunobu-Eto` アカウント、scopes: `gist, read:org, repo, workflow`）ので、`gh auth login` の再実行は不要。
