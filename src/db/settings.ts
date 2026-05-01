@@ -31,8 +31,19 @@ export async function getAllSettings(): Promise<AppSettings> {
   const map = new Map<string, string | null>();
   for (const r of rows) map.set(r.key, r.value);
 
+  let bgUris: string[] = [];
+  try {
+    const rawUris = map.get('bg_uris');
+    if (rawUris) bgUris = JSON.parse(rawUris);
+  } catch (e) {
+    console.error(e);
+  }
+
   return {
     isBgEnabled: map.get('is_bg_enabled') === '1',
     bgUri: (map.get('bg_uri') ?? '') || null,
+    bgUris,
+    bgMode: (map.get('bg_mode') as 'fixed' | 'random') || 'fixed',
+    appTheme: (map.get('app_theme') as any) || 'light-gray',
   };
 }
