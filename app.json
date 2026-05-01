@@ -1,8 +1,9 @@
 {
   "expo": {
-    "name": "Tear-off-Calendar",
-    "owner": "tatsunobu", 
-    "slug": "tear-off-calendar", 
+"name": "Tear-off-Calendar",
+    "owner": "tatsunobu",            
+    "slug": "tear-off-calendar",     
+     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "tearoffcalendar",
