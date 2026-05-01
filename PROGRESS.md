@@ -9,10 +9,10 @@
 - [x] フォルダ構成のセットアップ（`src/components`, `src/screens`, `src/store`, `src/db` 等）
 
 ## フェーズ 2: データベースと状態管理の構築
-- [ ] SQLite初期化処理の実装（DB接続設定）
-- [ ] `events` テーブルと `settings` テーブルの作成（スキーマ定義）
-- [ ] データベース操作用のユーティリティ関数（CRUD）作成
-- [ ] Zustand（または Context）を用いたグローバルステートの構築
+- [x] SQLite初期化処理の実装（DB接続設定）
+- [x] `events` テーブルと `settings` テーブルの作成（スキーマ定義）
+- [x] データベース操作用のユーティリティ関数（CRUD）作成
+- [x] Zustand（または Context）を用いたグローバルステートの構築
 
 ## フェーズ 3: UI/UXとナビゲーションの実装
 - [ ] Bottom Tab Navigation の基礎組み込み（背景透過・半透明デザインの適用）
