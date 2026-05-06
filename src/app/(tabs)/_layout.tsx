@@ -1,7 +1,7 @@
+import { BlurView } from 'expo-blur';
 import * as Calendar from 'expo-calendar';
 import { Tabs, router } from 'expo-router';
 import React, { useCallback } from 'react';
-import { BlurView } from 'expo-blur';
 import { Platform, StyleSheet } from 'react-native';
 
 import { HapticTab } from '@/components/haptic-tab';
@@ -10,18 +10,26 @@ import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useNativeCalendarStore } from '@/store/nativeCalendarStore';
 
+/**
+ * タブナビゲーションのレイアウト
+ * アプリの下部に常駐するメニューバーを定義し、主要な3画面の切り替えを管理します。
+ */
 export default function TabLayout() {
   const colorScheme = useColorScheme();
   const { fetchAll } = useNativeCalendarStore();
 
+  /**
+   * 「予定追加」ボタンが押された時のアクション
+   * OSごとに最適なユーザー体験（UX）を提供するため、処理を分岐しています。
+   */
   const handleAddPress = useCallback(async () => {
     if (Platform.OS === 'ios') {
-      // iOS: ネイティブカレンダーの予定作成UIを表示
+      // iOS: システム標準のイベント作成UIを直接呼び出し、使い慣れた操作感を提供
       await Calendar.createEventInCalendarAsync();
-      // 作成後（キャンセル含む）にキャッシュを更新
+      // モーダルが閉じられた後、新規作成された予定を反映するためにデータを再取得
       await fetchAll();
     } else {
-      // Android: カスタムモーダルにフォールバック
+      // Android: Expoライブラリの制限によりカスタム画面（/modal）へ遷移
       router.push('/modal');
     }
   }, [fetchAll]);
@@ -29,17 +37,22 @@ export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
+        // アクティブなタブの色をテーマに合わせて設定
         tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
         headerShown: false,
+        // 全てのタブボタンに触覚フィードバック（Haptic）を付与
         tabBarButton: HapticTab,
+        // タブバーを背景画像の上に浮かせるためのスタイル設定
         tabBarStyle: Platform.select({
           ios: {
+            // iOSは完全に透明にし、背後のBlurViewで高級感のあるぼかしを表現
             position: 'absolute',
             backgroundColor: 'transparent',
             borderTopWidth: 0,
             elevation: 0,
           },
           android: {
+            // Androidはわずかに透過させた白/黒の背景色を設定
             position: 'absolute',
             backgroundColor: 'rgba(255, 255, 255, 0.8)',
             borderTopWidth: 0,
@@ -52,6 +65,7 @@ export default function TabLayout() {
             elevation: 0,
           },
         }),
+        // iOS専用：タブバーの背後をリアルタイムでぼかす（すりガラス効果）
         tabBarBackground: Platform.OS === 'ios' ? () => (
           <BlurView
             tint={colorScheme === 'dark' ? 'dark' : 'light'}
@@ -60,6 +74,7 @@ export default function TabLayout() {
           />
         ) : undefined,
       }}>
+      {/* 1. ホーム（日めくりカレンダー） */}
       <Tabs.Screen
         name="index"
         options={{
@@ -67,6 +82,7 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
         }}
       />
+      {/* 2. 月間カレンダー */}
       <Tabs.Screen
         name="calendar"
         options={{
@@ -74,6 +90,7 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="calendar" color={color} />,
         }}
       />
+      {/* 3. 特殊な「追加」ボタン（画面遷移せず、ネイティブまたはカスタムUIを起動） */}
       <Tabs.Screen
         name="add"
         options={{
@@ -82,11 +99,13 @@ export default function TabLayout() {
         }}
         listeners={{
           tabPress: (e) => {
+            // 通常の画面遷移をキャンセルし、独自の関数を実行
             e.preventDefault();
             handleAddPress();
           },
         }}
       />
+      {/* 4. 設定画面 */}
       <Tabs.Screen
         name="settings"
         options={{

@@ -1,3 +1,8 @@
+/**
+ * データベース基盤モジュール
+ * SQLiteの接続管理（シングルトン）および、スキーマ定義、初期化ロジックを担当します。
+ * アプリ起動時の RootLayout で呼び出されます。
+ */
 import * as SQLite from 'expo-sqlite';
 
 const DB_NAME = 'tear_off_calendar.db';
@@ -12,25 +17,37 @@ export async function getDb(): Promise<SQLite.SQLiteDatabase> {
   return dbInstance;
 }
 
+/**
+ * データベースの初期化処理
+ * テーブルの作成と、初回起動時のデフォルト設定の投入を行います。
+ */
 export async function initDatabase(): Promise<void> {
   const db = await getDb();
 
+  // PRAGMA設定とテーブル作成をバッチ実行
   await db.execAsync(`
+    -- WALモードを有効にして読み書きの並列パフォーマンスを向上
     PRAGMA journal_mode = WAL;
+    -- 外部キー制約を有効化
     PRAGMA foreign_keys = ON;
 
+    -- 設定値を管理するシンプルなKey-Valueテーブル
     CREATE TABLE IF NOT EXISTS settings (
       key TEXT PRIMARY KEY,
       value TEXT
     );
   `);
 
+  // 初回起動時に必要なデフォルト設定値
   const defaults: [string, string][] = [
     ['is_bg_enabled', '1'],
     ['bg_uri', ''],
     ['selected_calendar_ids', '[]'],
     ['default_calendar_id', ''],
   ];
+
+  // 各デフォルト値を投入。INSERT OR IGNORE を使うことで、
+  // すでに値が存在する（ユーザーが設定変更済み）場合は上書きしないようにする。
   for (const [key, value] of defaults) {
     await db.runAsync(
       `INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)`,

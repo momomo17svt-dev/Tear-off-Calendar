@@ -23,7 +23,15 @@ import { useSettingsStore } from '@/store/settingsStore';
 import { getWritableCalendars, toDateString } from '@/utils/nativeCalendar';
 import { getThemeColors } from '@/utils/theme';
 
-// ── 日付ピッカーモーダル（iOS/Android 共通） ──────────────────────────────
+/**
+ * 予定の追加・編集用モーダル画面
+ * iOS/Androidのネイティブカレンダーに対してイベントの登録・更新・削除を行います。
+ */
+
+/**
+ * 日付ピッカーモーダル
+ * iOSではスピナーを表示し、AndroidではOS標準のダイアログを呼び出します。
+ */
 function DatePickerModal({
   visible,
   date,
@@ -40,10 +48,12 @@ function DatePickerModal({
   const [tempDate, setTempDate] = useState(date);
   const themeColors = getThemeColors(isDarkMode);
 
+  // モーダルが開かれた時に現在の日付を同期
   useEffect(() => {
     if (visible) setTempDate(date);
   }, [visible, date]);
 
+  // iOS: モーダル内にピッカーを組み込んで表示
   if (Platform.OS === 'ios') {
     return (
       <Modal visible={visible} transparent animationType="slide">
@@ -72,6 +82,7 @@ function DatePickerModal({
     );
   }
 
+  // Android: DateTimePicker自体がダイアログとして動作するため、visibleの状態を外部で管理
   if (!visible) return null;
   return (
     <DateTimePicker
@@ -86,7 +97,10 @@ function DatePickerModal({
   );
 }
 
-// ── カレンダー選択ピッカー ───────────────────────────────────────────────
+/**
+ * 保存先カレンダーの選択リスト
+ * ユーザーが書き込み権限を持つカレンダー（iCloud, Google, ローカル等）を表示します。
+ */
 function CalendarPicker({
   calendars,
   selectedId,
@@ -127,22 +141,29 @@ function CalendarPicker({
   );
 }
 
-// ── メイン ────────────────────────────────────────────────────────────────
+/**
+ * 予定作成・編集画面のメインコンポーネント
+ */
 export default function ModalScreen() {
+  // パラメータからイベントID（編集時）と初期表示する日付文字列を取得
   const { eventId, dateStr: initialDateStr } = useLocalSearchParams<{ eventId?: string; dateStr?: string }>();
   const isEdit = Boolean(eventId);
 
+  // Zustandストアからカレンダー操作用の関数を取得
   const { addEvent, editEvent, removeEvent } = useNativeCalendarStore();
   const { defaultCalendarId, isDarkMode } = useSettingsStore();
+  
   const insets = useSafeAreaInsets();
   const themeColors = getThemeColors(isDarkMode);
 
+  // フォームの状態管理
   const today = new Date();
   const [title, setTitle] = useState('');
   const [notes, setNotes] = useState('');
   const [isAllDay, setIsAllDay] = useState(true);
   const [selectedDate, setSelectedDate] = useState<Date>(() => {
     if (initialDateStr) {
+      // タイムゾーンのずれを防ぐため T00:00:00 を付与してパース
       const d = new Date(initialDateStr + 'T00:00:00');
       return isNaN(d.getTime()) ? today : d;
     }
@@ -151,9 +172,11 @@ export default function ModalScreen() {
   const [showPicker, setShowPicker] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
+  // 保存先カレンダーのリスト
   const [writableCalendars, setWritableCalendars] = useState<Calendar.Calendar[]>([]);
   const [selectedCalendarId, setSelectedCalendarId] = useState<string>(defaultCalendarId ?? '');
 
+  // 書き込み可能なカレンダー（ユーザーが所有しているカレンダー）を取得
   useEffect(() => {
     (async () => {
       const cals = await getWritableCalendars();
@@ -164,6 +187,7 @@ export default function ModalScreen() {
     })();
   }, []);
 
+  // 編集モードの場合、既存のイベント情報を読み込む
   useEffect(() => {
     if (!isEdit || !eventId) return;
     (async () => {
@@ -177,6 +201,7 @@ export default function ModalScreen() {
           setSelectedCalendarId(ev.calendarId);
         }
       } catch {
+        // イベントが見つからない（外部で削除されたなど）場合はクリーンアップして戻る
         useNativeCalendarStore.getState().purgeStaleEvent(eventId);
         Alert.alert(
           'イベントが見つかりません',
@@ -189,6 +214,9 @@ export default function ModalScreen() {
 
   const dateDisplayStr = toDateString(selectedDate);
 
+  /**
+   * 終日設定に応じた開始・終了時間を生成
+   */
   const buildStartEnd = () => {
     const start = new Date(selectedDate);
     const end = new Date(selectedDate);
@@ -196,12 +224,16 @@ export default function ModalScreen() {
       start.setHours(0, 0, 0, 0);
       end.setHours(23, 59, 59, 999);
     } else {
+      // 終日でない場合はデフォルトで 9:00〜10:00 に設定
       start.setHours(9, 0, 0, 0);
       end.setHours(10, 0, 0, 0);
     }
     return { start, end };
   };
 
+  /**
+   * 保存（追加または更新）ボタン押下時の処理
+   */
   const handleSave = async () => {
     if (!title.trim()) {
       Alert.alert('入力エラー', 'タイトルを入力してください');
@@ -217,6 +249,7 @@ export default function ModalScreen() {
       const { start, end } = buildStartEnd();
 
       if (isEdit && eventId) {
+        // 既存イベントの更新処理
         await editEvent(eventId, {
           title: title.trim(),
           startDate: start,
@@ -225,6 +258,7 @@ export default function ModalScreen() {
           notes: notes.trim() || null,
         });
       } else {
+        // 新規イベントの登録処理
         await addEvent(selectedCalendarId, {
           title: title.trim(),
           startDate: start,
@@ -234,14 +268,19 @@ export default function ModalScreen() {
         });
       }
 
+      // 前の画面（カレンダー等）に戻る
       router.back();
-    } catch {
-      Alert.alert('エラー', '保存に失敗しました');
+    } catch (e) {
+      console.error('Save error:', e);
+      Alert.alert('エラー', '保存に失敗しました。カレンダーへのアクセス権限を確認してください。');
     } finally {
       setIsSaving(false);
     }
   };
 
+  /**
+   * 削除ボタン押下時の処理（編集モード時のみ有効）
+   */
   const handleDelete = () => {
     if (!eventId) return;
     Alert.alert('削除の確認', `「${title}」を削除しますか？`, [
@@ -250,8 +289,13 @@ export default function ModalScreen() {
         text: '削除',
         style: 'destructive',
         onPress: async () => {
-          await removeEvent(eventId, dateDisplayStr);
-          router.back();
+          try {
+            await removeEvent(eventId, dateDisplayStr);
+            router.back();
+          } catch (e) {
+            console.error('Delete error:', e);
+            Alert.alert('エラー', '削除に失敗しました。');
+          }
         },
       },
     ]);
@@ -278,7 +322,7 @@ export default function ModalScreen() {
           </Text>
         </View>
 
-        {/* ── 日付 ── */}
+        {/* ── 日付選択 ── */}
         <View style={styles.formGroup}>
           <Text style={[styles.label, { color: themeColors.textMain }]}>📅 日付</Text>
           <TouchableOpacity
@@ -302,7 +346,7 @@ export default function ModalScreen() {
           isDarkMode={isDarkMode}
         />
 
-        {/* ── タイトル ── */}
+        {/* ── タイトル入力 ── */}
         <View style={styles.formGroup}>
           <Text style={[styles.label, { color: themeColors.textMain }]}>✏️ タイトル</Text>
           <TextInput
@@ -316,7 +360,7 @@ export default function ModalScreen() {
           />
         </View>
 
-        {/* ── メモ ── */}
+        {/* ── メモ入力 ── */}
         <View style={styles.formGroup}>
           <Text style={[styles.label, { color: themeColors.textMain }]}>📝 メモ（任意）</Text>
           <TextInput
@@ -330,7 +374,7 @@ export default function ModalScreen() {
           />
         </View>
 
-        {/* ── 終日 ── */}
+        {/* ── 終日設定 ── */}
         <View style={[styles.toggleRow, { backgroundColor: themeColors.cardBg }]}>
           <View>
             <Text style={[styles.toggleLabel, { color: themeColors.textMain }]}>🕐 終日イベント</Text>
@@ -344,7 +388,7 @@ export default function ModalScreen() {
           />
         </View>
 
-        {/* ── カレンダー選択 ── */}
+        {/* ── 保存先カレンダー選択（新規追加時のみ） ── */}
         {!isEdit && (
           <View style={[styles.formGroup, styles.toggleRowLast]}>
             <Text style={[styles.label, { color: themeColors.textMain }]}>📋 保存先カレンダー</Text>
@@ -357,7 +401,7 @@ export default function ModalScreen() {
           </View>
         )}
 
-        {/* ── ボタン ── */}
+        {/* ── 操作ボタン ── */}
         <View style={styles.buttonRow}>
           {isEdit ? (
             <TouchableOpacity
@@ -405,7 +449,6 @@ export default function ModalScreen() {
   );
 }
 
-// ── スタイル ──────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   wrapper: { flex: 1, backgroundColor: '#f5f7fa' },
   container: { padding: 20, paddingTop: 12 },

@@ -21,9 +21,18 @@ import { useNativeCalendarStore } from '@/store/nativeCalendarStore';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { getThemeColors, getBackgroundGradient } from '@/utils/theme';
 
+/**
+ * 設定画面コンポーネント
+ * アプリのテーマ、表示カレンダー、背景画像などの設定を管理します。
+ */
+
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+// 背景画像のサムネイル表示用アスペクト比の計算
 const CARD_IMAGE_ASPECT = (SCREEN_WIDTH * 0.88) / (SCREEN_HEIGHT * 0.70 * 0.36);
 
+/**
+ * 背景テーマのプリセット定義
+ */
 const THEMES = [
   { key: 'washi',      label: '和紙',  emoji: '📄', colors: ['#FAF7F0', '#F0E8D8'] as [string, string] },
   { key: 'light-gray', label: 'グレー', emoji: '🩶', colors: ['#E8EDF2', '#D0D7E0'] as [string, string] },
@@ -36,6 +45,7 @@ const THEMES = [
 ] as const;
 
 export default function SettingsScreen() {
+  // 設定ストアから状態とアクションを取得
   const {
     isBgEnabled, bgUri, bgUris, bgMode, appTheme,
     isDarkMode,
@@ -45,21 +55,30 @@ export default function SettingsScreen() {
     setSelectedCalendarIds,
   } = useSettingsStore();
 
+  // ネイティブカレンダー（iOS/Androidのカレンダーアプリ）の状態を取得
   const { availableCalendars, loadCalendars, fetchAll } = useNativeCalendarStore();
 
   const insets = useSafeAreaInsets();
   const [isLoading, setIsLoading] = useState(false);
 
+  // コンポーネントマウント時に利用可能なカレンダーを読み込む
   useEffect(() => {
     loadCalendars();
   }, []);
 
+  // 現在のモード（ライト/ダーク）に応じた色を取得
   const themeColors = getThemeColors(isDarkMode);
 
+  /**
+   * カレンダーの表示・非表示を切り替える
+   * @param calendarId カレンダーID
+   * @param enabled 有効にするかどうか
+   */
   const handleCalendarToggle = async (calendarId: string, enabled: boolean) => {
     let next: string[];
     if (selectedCalendarIds.length === 0) {
-      // 空 = 全表示。OFFにする場合は他の全IDを選択状態にしてから対象を除外
+      // 選択リストが空の場合は「すべて表示」の状態。
+      // 特定のカレンダーをOFFにする場合は、他の全IDを選択状態にしてから対象を除外する
       const allIds = availableCalendars.map((c) => c.id);
       next = enabled ? allIds : allIds.filter((id) => id !== calendarId);
     } else {
@@ -68,14 +87,20 @@ export default function SettingsScreen() {
         : selectedCalendarIds.filter((id) => id !== calendarId);
     }
     await setSelectedCalendarIds(next);
-    await fetchAll();
+    await fetchAll(); // ホーム画面などのデータを更新
   };
 
+  /**
+   * 特定のカレンダーが現在有効（表示対象）かどうかを判定
+   */
   const isCalendarEnabled = (calendarId: string) => {
     if (selectedCalendarIds.length === 0) return true;
     return selectedCalendarIds.includes(calendarId);
   };
 
+  /**
+   * 端末のフォトライブラリから背景画像を選択する
+   */
   const pickImage = async () => {
     try {
       setIsLoading(true);
@@ -88,6 +113,7 @@ export default function SettingsScreen() {
       if (!result.canceled && result.assets?.length > 0) {
         const sourceUri = result.assets[0].uri;
         const filename = `bg_${Date.now()}.jpg`;
+        // 画像をアプリのドキュメントディレクトリに保存（永続化）
         // eslint-disable-next-line import/namespace
         const destUri = FileSystem.documentDirectory + filename;
         await FileSystem.copyAsync({ from: sourceUri, to: destUri });
@@ -100,6 +126,9 @@ export default function SettingsScreen() {
     }
   };
 
+  /**
+   * 設定された背景画像を削除する
+   */
   const handleRemove = (uri: string) => {
     Alert.alert('確認', 'この画像を削除しますか？', [
       { text: 'キャンセル', style: 'cancel' },
@@ -119,7 +148,7 @@ export default function SettingsScreen() {
           <Text style={[styles.headerSubtitle, { color: themeColors.textSub }]}>カレンダーをカスタマイズ</Text>
         </View>
 
-        {/* ── ダークモード ── */}
+        {/* ── ダークモード設定 ── */}
         <View style={[styles.section, { backgroundColor: isDarkMode ? '#2C2C2E' : '#FFFFFF' }]}>
           <View style={styles.sectionHeader}>
             <View>
@@ -135,7 +164,7 @@ export default function SettingsScreen() {
           </View>
         </View>
 
-        {/* ── 表示するカレンダー ── */}
+        {/* ── 表示するカレンダーの選択 ── */}
         <View style={[styles.section, { backgroundColor: isDarkMode ? '#2C2C2E' : '#FFFFFF' }]}>
           <Text style={[styles.sectionTitle, { color: themeColors.textMain }]}>📋 表示するカレンダー</Text>
           <Text style={[styles.sectionDesc, { color: themeColors.textSub }]}>ホーム画面に表示する予定のカレンダーを選択</Text>
@@ -163,7 +192,7 @@ export default function SettingsScreen() {
           )}
         </View>
 
-        {/* ── 背景テーマ ── */}
+        {/* ── 背景テーマ（グラデーション/テクスチャ） ── */}
         <View style={[styles.section, { backgroundColor: isDarkMode ? '#2C2C2E' : '#FFFFFF' }]}>
           <Text style={[styles.sectionTitle, { color: themeColors.textMain }]}>🎨 背景テーマ</Text>
           <Text style={[styles.sectionDesc, { color: themeColors.textSub }]}>画像が未設定の場合に適用されます</Text>
@@ -198,7 +227,7 @@ export default function SettingsScreen() {
           </View>
         </View>
 
-        {/* ── 背景画像 ── */}
+        {/* ── 背景画像（ユーザー写真） ── */}
         <View style={[styles.section, { backgroundColor: isDarkMode ? '#2C2C2E' : '#FFFFFF' }]}>
           <View style={styles.sectionHeader}>
             <View>
@@ -215,7 +244,7 @@ export default function SettingsScreen() {
 
           {isBgEnabled && (
             <>
-              {/* 表示モード */}
+              {/* 表示モード選択 (固定 or ランダム) */}
               <View style={styles.modeContainer}>
                 <Text style={[styles.modeLabel, { color: themeColors.textMain }]}>表示モード</Text>
                 <View style={styles.modeSelector}>
@@ -234,7 +263,7 @@ export default function SettingsScreen() {
                 </View>
               </View>
 
-              {/* 画像グリッド */}
+              {/* 画像グリッド表示 */}
               <View style={styles.imageSection}>
                 <View style={styles.imageSectionHeader}>
                   <Text style={[styles.imageCount, { color: themeColors.textSub }]}>
@@ -371,7 +400,7 @@ const styles = StyleSheet.create({
     fontWeight: '400',
     marginBottom: 14,
   },
-  // ── カレンダー ──
+  // ── カレンダーセクション ──
   calendarEmptyState: {
     alignItems: 'center',
     paddingVertical: 16,
@@ -410,7 +439,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: '#334155',
   },
-  // ── テーマ ──
+  // ── テーマセクション ──
   themeGrid: {
     flexDirection: 'row',
     gap: 12,
@@ -454,7 +483,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderRadius: 12,
   },
-  // ── 表示モード ──
+  // ── 表示モードセクション ──
   modeContainer: {
     marginBottom: 20,
   },

@@ -1,3 +1,8 @@
+/**
+ * 設定管理用グローバルストア (Zustand)
+ * アプリのテーマ、ダークモード、背景設定、カレンダー選択状態などの
+ * 状態管理と、DB（SQLite）への永続化ロジックを統合して提供します。
+ */
 import { create } from 'zustand';
 import { getAllSettings, setSetting } from '@/db/settings';
 
@@ -26,19 +31,25 @@ interface SettingsState {
 }
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({
-  isBgEnabled: true,
-  bgUri: null,
-  bgUris: [],
-  bgMode: 'fixed',
-  appTheme: 'washi',
-  isDarkMode: false,
-  selectedCalendarIds: [],
-  defaultCalendarId: null,
-  isLoading: false,
+  // --- 初期状態 (Default State) ---
+  isBgEnabled: true,          // 背景表示の有効フラグ
+  bgUri: null,                // 現在設定されている背景画像のURI
+  bgUris: [],                 // ユーザーが追加した背景画像URIのリスト
+  bgMode: 'fixed',            // 背景の切り替えモード ('fixed':固定, 'random':ランダム)
+  appTheme: 'washi',          // アプリの視覚テーマ
+  isDarkMode: false,          // ダークモードの有効フラグ
+  selectedCalendarIds: [],    // 表示対象として選択されたシステムカレンダーのID
+  defaultCalendarId: null,    // 予定追加時のデフォルトカレンダーID
+  isLoading: false,           // 設定読み込み中フラグ
 
+  /**
+   * データベースから設定を読み込み、ストアの状態を更新する
+   */
   loadSettings: async () => {
     set({ isLoading: true });
-    const s = await getAllSettings();
+    const s = await getAllSettings(); // DB層(SQLite)から全設定を取得
+    
+    // ストアの状態をDBの値で同期
     set({
       isBgEnabled: s.isBgEnabled,
       bgUri: s.bgUri,
