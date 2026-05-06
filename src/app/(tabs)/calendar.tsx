@@ -12,6 +12,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useNativeCalendarStore } from '@/store/nativeCalendarStore';
 import { useNavigationStore } from '@/store/navigationStore';
+import { useSettingsStore } from '@/store/settingsStore';
+import { getThemeColors } from '@/utils/theme';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CELL_W = Math.floor(SCREEN_WIDTH / 7);
@@ -78,17 +80,25 @@ const DayCell = React.memo(({
   isToday: boolean;
   isSun: boolean;
   isSat: boolean;
+  isSun: boolean;
+  isSat: boolean;
   onPress: (cell: CellDay) => void;
+  isDarkMode: boolean;
 }) => {
+  const themeColors = getThemeColors(isDarkMode);
   const numColor = !cell.isCurrent
-    ? '#ccc'
+    ? (isDarkMode ? '#444' : '#ccc')
     : isSun ? '#e63946'
     : isSat ? '#2563eb'
-    : '#1a1a2e';
+    : themeColors.textMain;
 
   return (
     <TouchableOpacity
-      style={[styles.cell, !cell.isCurrent && styles.cellOther]}
+      style={[
+        styles.cell,
+        { borderRightColor: themeColors.border },
+        !cell.isCurrent && (isDarkMode ? { backgroundColor: '#161618' } : styles.cellOther)
+      ]}
       onPress={() => onPress(cell)}
       activeOpacity={0.7}
     >
@@ -97,14 +107,14 @@ const DayCell = React.memo(({
           {cell.day}
         </Text>
       </View>
-      <Text style={styles.rokuyo}>{getRokuyo(cell.year, cell.month, cell.day)}</Text>
+      <Text style={[styles.rokuyo, { color: themeColors.textSub }]}>{getRokuyo(cell.year, cell.month, cell.day)}</Text>
       {events.slice(0, 3).map((evt, ei) => (
         <View key={ei} style={[styles.chip, { backgroundColor: evt.calendarColor ?? '#0a7ea4' }]}>
           <Text style={styles.chipText} numberOfLines={1}>{evt.title}</Text>
         </View>
       ))}
       {events.length > 3 && (
-        <Text style={styles.moreText}>+{events.length - 3}</Text>
+        <Text style={[styles.moreText, { color: themeColors.textSub }]}>+{events.length - 3}</Text>
       )}
     </TouchableOpacity>
   );
@@ -114,6 +124,9 @@ export default function CalendarScreen() {
   const insets = useSafeAreaInsets();
   const { eventsByDate } = useNativeCalendarStore();
   const { setJumpDate } = useNavigationStore();
+  const { isDarkMode } = useSettingsStore();
+
+  const themeColors = getThemeColors(isDarkMode);
 
   const today = new Date();
   const todayStr = toDateStr(today.getFullYear(), today.getMonth() + 1, today.getDate());
@@ -139,22 +152,22 @@ export default function CalendarScreen() {
   }, [setJumpDate]);
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View style={[styles.container, { paddingTop: insets.top, backgroundColor: themeColors.cardBg }]}>
       {/* ヘッダー */}
-      <View style={styles.header}>
+      <View style={[styles.header, { borderBottomColor: themeColors.border }]}>
         <TouchableOpacity onPress={prevMonth} style={styles.navBtn}>
-          <Text style={styles.navArrow}>‹</Text>
+          <Text style={[styles.navArrow, { color: themeColors.textMain }]}>‹</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>{viewYear}年{viewMonth}月</Text>
+        <Text style={[styles.headerTitle, { color: themeColors.textMain }]}>{viewYear}年{viewMonth}月</Text>
         <TouchableOpacity onPress={nextMonth} style={styles.navBtn}>
-          <Text style={styles.navArrow}>›</Text>
+          <Text style={[styles.navArrow, { color: themeColors.textMain }]}>›</Text>
         </TouchableOpacity>
       </View>
 
       {/* 曜日ヘッダー */}
-      <View style={styles.dowRow}>
+      <View style={[styles.dowRow, { backgroundColor: isDarkMode ? '#1C1C1E' : '#f8f8f8', borderBottomColor: themeColors.border }]}>
         {DAYS_JP.map((d, i) => (
-          <Text key={d} style={[styles.dowLabel, i === 0 && styles.sunText, i === 6 && styles.satText]}>
+          <Text key={d} style={[styles.dowLabel, i === 0 && styles.sunText, i === 6 && styles.satText, { color: (i === 0 || i === 6) ? undefined : themeColors.textSub }]}>
             {d}
           </Text>
         ))}
@@ -163,7 +176,7 @@ export default function CalendarScreen() {
       {/* カレンダーグリッド */}
       <ScrollView showsVerticalScrollIndicator={false} style={styles.grid}>
         {weeks.map((week, wi) => (
-          <View key={wi} style={styles.weekRow}>
+          <View key={wi} style={[styles.weekRow, { borderBottomColor: themeColors.border }]}>
             {week.map((cell, di) => {
               const dateStr = toDateStr(cell.year, cell.month, cell.day);
               return (
@@ -175,6 +188,7 @@ export default function CalendarScreen() {
                   isSun={di === 0}
                   isSat={di === 6}
                   onPress={handleDayPress}
+                  isDarkMode={isDarkMode}
                 />
               );
             })}

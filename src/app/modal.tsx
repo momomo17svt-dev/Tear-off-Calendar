@@ -19,8 +19,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 
 import { useNativeCalendarStore } from '@/store/nativeCalendarStore';
-import { useSettingsStore } from '@/store/settingsStore';
 import { getWritableCalendars, toDateString } from '@/utils/nativeCalendar';
+import { getThemeColors } from '@/utils/theme';
 
 // ── 日付ピッカーモーダル（iOS/Android 共通） ──────────────────────────────
 function DatePickerModal({
@@ -33,8 +33,10 @@ function DatePickerModal({
   date: Date;
   onChange: (d: Date) => void;
   onClose: () => void;
+  isDarkMode: boolean;
 }) {
   const [tempDate, setTempDate] = useState(date);
+  const themeColors = getThemeColors(isDarkMode);
 
   useEffect(() => {
     if (visible) setTempDate(date);
@@ -44,12 +46,12 @@ function DatePickerModal({
     return (
       <Modal visible={visible} transparent animationType="slide">
         <TouchableOpacity style={styles.pickerOverlay} onPress={onClose} activeOpacity={1}>
-          <View style={styles.pickerContainer}>
-            <View style={styles.pickerHeader}>
+          <View style={[styles.pickerContainer, { backgroundColor: themeColors.cardBg }]}>
+            <View style={[styles.pickerHeader, { borderBottomColor: themeColors.border }]}>
               <TouchableOpacity onPress={onClose}>
                 <Text style={styles.pickerCancel}>キャンセル</Text>
               </TouchableOpacity>
-              <Text style={styles.pickerTitle}>日付を選択</Text>
+              <Text style={[styles.pickerTitle, { color: themeColors.textMain }]}>日付を選択</Text>
               <TouchableOpacity onPress={() => { onChange(tempDate); onClose(); }}>
                 <Text style={styles.pickerDone}>完了</Text>
               </TouchableOpacity>
@@ -87,12 +89,15 @@ function CalendarPicker({
   calendars,
   selectedId,
   onSelect,
+  isDarkMode,
 }: {
   calendars: Calendar.Calendar[];
   selectedId: string;
   onSelect: (id: string) => void;
+  isDarkMode: boolean;
 }) {
   if (calendars.length === 0) return null;
+  const themeColors = getThemeColors(isDarkMode);
   return (
     <View style={styles.calendarList}>
       {calendars.map((cal) => {
@@ -100,12 +105,16 @@ function CalendarPicker({
         return (
           <TouchableOpacity
             key={cal.id}
-            style={[styles.calendarItem, active && styles.calendarItemActive]}
+            style={[
+              styles.calendarItem,
+              { backgroundColor: themeColors.cardBg, borderColor: themeColors.border },
+              active && styles.calendarItemActive
+            ]}
             onPress={() => onSelect(cal.id)}
             activeOpacity={0.7}
           >
             <View style={[styles.calendarDot, { backgroundColor: cal.color }]} />
-            <Text style={[styles.calendarName, active && styles.calendarNameActive]} numberOfLines={1}>
+            <Text style={[styles.calendarName, { color: themeColors.textMain }, active && styles.calendarNameActive]} numberOfLines={1}>
               {cal.title}
             </Text>
             {active && <Text style={styles.calendarCheck}>✓</Text>}
@@ -118,12 +127,12 @@ function CalendarPicker({
 
 // ── メイン ────────────────────────────────────────────────────────────────
 export default function ModalScreen() {
-  const { eventId, dateStr: initialDateStr } = useLocalSearchParams<{ eventId?: string; dateStr?: string }>();
   const isEdit = Boolean(eventId);
 
   const { addEvent, editEvent, removeEvent } = useNativeCalendarStore();
-  const { defaultCalendarId } = useSettingsStore();
+  const { defaultCalendarId, isDarkMode } = useSettingsStore();
   const insets = useSafeAreaInsets();
+  const themeColors = getThemeColors(isDarkMode);
 
   const today = new Date();
   const [title, setTitle] = useState('');
@@ -247,7 +256,7 @@ export default function ModalScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={styles.wrapper}
+      style={[styles.wrapper, { backgroundColor: isDarkMode ? '#111' : '#f5f7fa' }]}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <ScrollView
@@ -257,28 +266,28 @@ export default function ModalScreen() {
       >
         {/* ── ヘッダー ── */}
         <View style={styles.header}>
-          <View style={styles.handle} />
-          <Text style={styles.headerTitle}>
+          <View style={[styles.handle, { backgroundColor: isDarkMode ? '#444' : '#d1d5db' }]} />
+          <Text style={[styles.headerTitle, { color: themeColors.textMain }]}>
             {isEdit ? '予定を編集' : '予定を追加'}
           </Text>
-          <Text style={styles.headerSubtitle}>
+          <Text style={[styles.headerSubtitle, { color: themeColors.textSub }]}>
             {isEdit ? '内容を変更して保存してください' : 'ネイティブカレンダーに直接保存されます'}
           </Text>
         </View>
 
         {/* ── 日付 ── */}
         <View style={styles.formGroup}>
-          <Text style={styles.label}>📅 日付</Text>
+          <Text style={[styles.label, { color: themeColors.textMain }]}>📅 日付</Text>
           <TouchableOpacity
-            style={styles.datePickerButton}
+            style={[styles.datePickerButton, { backgroundColor: themeColors.cardBg, borderColor: themeColors.border }]}
             onPress={() => setShowPicker(true)}
             activeOpacity={0.8}
           >
             <View style={styles.datePickerLeft}>
               <Text style={styles.datePickerIcon}>📆</Text>
-              <Text style={styles.datePickerText}>{dateDisplayStr}</Text>
+              <Text style={[styles.datePickerText, { color: themeColors.textMain }]}>{dateDisplayStr}</Text>
             </View>
-            <Text style={styles.datePickerChevron}>›</Text>
+            <Text style={[styles.datePickerChevron, { color: themeColors.border }]}>›</Text>
           </TouchableOpacity>
         </View>
 
@@ -287,17 +296,18 @@ export default function ModalScreen() {
           date={selectedDate}
           onChange={(d) => setSelectedDate(d)}
           onClose={() => setShowPicker(false)}
+          isDarkMode={isDarkMode}
         />
 
         {/* ── タイトル ── */}
         <View style={styles.formGroup}>
-          <Text style={styles.label}>✏️ タイトル</Text>
+          <Text style={[styles.label, { color: themeColors.textMain }]}>✏️ タイトル</Text>
           <TextInput
-            style={styles.input}
+            style={[styles.input, { backgroundColor: themeColors.cardBg, borderColor: themeColors.border, color: themeColors.textMain }]}
             value={title}
             onChangeText={setTitle}
             placeholder="タイトルを入力..."
-            placeholderTextColor="#bbb"
+            placeholderTextColor={isDarkMode ? '#555' : '#bbb'}
             returnKeyType="done"
             autoFocus={!isEdit}
           />
@@ -305,40 +315,41 @@ export default function ModalScreen() {
 
         {/* ── メモ ── */}
         <View style={styles.formGroup}>
-          <Text style={styles.label}>📝 メモ（任意）</Text>
+          <Text style={[styles.label, { color: themeColors.textMain }]}>📝 メモ（任意）</Text>
           <TextInput
-            style={[styles.input, styles.notesInput]}
+            style={[styles.input, styles.notesInput, { backgroundColor: themeColors.cardBg, borderColor: themeColors.border, color: themeColors.textMain }]}
             value={notes}
             onChangeText={setNotes}
             placeholder="メモを入力..."
-            placeholderTextColor="#bbb"
+            placeholderTextColor={isDarkMode ? '#555' : '#bbb'}
             multiline
             returnKeyType="default"
           />
         </View>
 
         {/* ── 終日 ── */}
-        <View style={styles.toggleRow}>
+        <View style={[styles.toggleRow, { backgroundColor: themeColors.cardBg }]}>
           <View>
-            <Text style={styles.toggleLabel}>🕐 終日イベント</Text>
-            <Text style={styles.toggleHint}>オフにすると 9:00〜10:00 で登録</Text>
+            <Text style={[styles.toggleLabel, { color: themeColors.textMain }]}>🕐 終日イベント</Text>
+            <Text style={[styles.toggleHint, { color: themeColors.textSub }]}>オフにすると 9:00〜10:00 で登録</Text>
           </View>
           <Switch
             value={isAllDay}
             onValueChange={setIsAllDay}
-            trackColor={{ false: '#d1d5db', true: '#a5f3fc' }}
-            thumbColor={isAllDay ? '#0a7ea4' : '#9ca3af'}
+            trackColor={{ false: '#d1d5db', true: '#30d158' }}
+            thumbColor={isAllDay ? '#ffffff' : '#f4f3f4'}
           />
         </View>
 
         {/* ── カレンダー選択 ── */}
         {!isEdit && (
           <View style={[styles.formGroup, styles.toggleRowLast]}>
-            <Text style={styles.label}>📋 保存先カレンダー</Text>
+            <Text style={[styles.label, { color: themeColors.textMain }]}>📋 保存先カレンダー</Text>
             <CalendarPicker
               calendars={writableCalendars}
               selectedId={selectedCalendarId}
               onSelect={setSelectedCalendarId}
+              isDarkMode={isDarkMode}
             />
           </View>
         )}
@@ -347,7 +358,7 @@ export default function ModalScreen() {
         <View style={styles.buttonRow}>
           {isEdit ? (
             <TouchableOpacity
-              style={styles.deleteButton}
+              style={[styles.deleteButton, { backgroundColor: isDarkMode ? '#3D1F1F' : '#fff2f2', borderColor: isDarkMode ? '#6B2D2D' : '#fca5a5' }]}
               onPress={handleDelete}
               activeOpacity={0.8}
             >
@@ -355,11 +366,11 @@ export default function ModalScreen() {
             </TouchableOpacity>
           ) : (
             <TouchableOpacity
-              style={styles.cancelButton}
+              style={[styles.cancelButton, { backgroundColor: themeColors.cardBg, borderColor: themeColors.border }]}
               onPress={() => router.back()}
               activeOpacity={0.8}
             >
-              <Text style={styles.cancelButtonText}>キャンセル</Text>
+              <Text style={[styles.cancelButtonText, { color: themeColors.textSub }]}>キャンセル</Text>
             </TouchableOpacity>
           )}
 
@@ -379,11 +390,11 @@ export default function ModalScreen() {
 
         {isEdit && (
           <TouchableOpacity
-            style={styles.cancelButtonFull}
+            style={[styles.cancelButtonFull, { backgroundColor: themeColors.cardBg, borderColor: themeColors.border, marginTop: 12 }]}
             onPress={() => router.back()}
             activeOpacity={0.8}
           >
-            <Text style={styles.cancelButtonText}>キャンセル</Text>
+            <Text style={[styles.cancelButtonText, { color: themeColors.textSub }]}>キャンセル</Text>
           </TouchableOpacity>
         )}
       </ScrollView>

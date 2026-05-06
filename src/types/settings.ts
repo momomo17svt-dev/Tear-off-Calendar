@@ -5,7 +5,8 @@ export type SettingKey =
   | 'bg_mode'
   | 'app_theme'
   | 'selected_calendar_ids'
-  | 'default_calendar_id';
+  | 'default_calendar_id'
+  | 'is_dark_mode';
 
 export interface SettingRow {
   key: SettingKey;
@@ -21,6 +22,7 @@ export interface AppSettings {
   bgUris: string[];
   bgMode: 'fixed' | 'random';
   appTheme: AppTheme;
+  isDarkMode: boolean;
   selectedCalendarIds: string[];
   defaultCalendarId: string | null;
 }

@@ -53,6 +53,7 @@ export async function getAllSettings(): Promise<AppSettings> {
     bgUris,
     bgMode: (map.get('bg_mode') as 'fixed' | 'random') || 'fixed',
     appTheme: (map.get('app_theme') as any) || 'light-gray',
+    isDarkMode: map.get('is_dark_mode') === '1',
     selectedCalendarIds,
     defaultCalendarId: (map.get('default_calendar_id') ?? '') || null,
   };

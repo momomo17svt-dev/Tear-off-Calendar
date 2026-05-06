@@ -22,7 +22,7 @@ import { useNativeCalendarStore } from '@/store/nativeCalendarStore';
 import { useNavigationStore } from '@/store/navigationStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import type { NativeCalendarEvent } from '@/types/event';
-import { getBackgroundGradient } from '@/utils/theme';
+import { getBackgroundGradient, getThemeColors } from '@/utils/theme';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const CARD_WIDTH = SCREEN_WIDTH * 0.88;
@@ -35,10 +35,10 @@ const DAY_OF_WEEK = ['日', '月', '火', '水', '木', '金', '土'];
 const MAX_COLLAPSED_EVENTS = 3;
 
 
-const getDayColor = (day: number) => {
-  if (day === 0) return '#e63946';
-  if (day === 6) return '#2563eb';
-  return '#1a1a2e';
+const getDayColor = (day: number, isDarkMode: boolean) => {
+  if (day === 0) return '#e63946'; // Sunday
+  if (day === 6) return '#2563eb'; // Saturday
+  return isDarkMode ? '#FFFFFF' : '#1a1a2e';
 };
 
 const toDateStr = (d: Date) =>
@@ -48,7 +48,8 @@ const formatTime = (date: Date) =>
   `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
 
 // ── 予定 1 件 ────────────────────────────────────────────────────────────
-function EventItem({ event, onPress }: { event: NativeCalendarEvent; onPress: (e: NativeCalendarEvent) => void }) {
+function EventItem({ event, onPress, isDarkMode }: { event: NativeCalendarEvent; onPress: (e: NativeCalendarEvent) => void; isDarkMode: boolean }) {
+  const themeColors = getThemeColors(isDarkMode);
   return (
     <TouchableOpacity
       style={[
@@ -61,16 +62,16 @@ function EventItem({ event, onPress }: { event: NativeCalendarEvent; onPress: (e
       <Text style={styles.eventIcon}>📅</Text>
       <View style={{ flex: 1 }}>
         <Text
-          style={[styles.eventText, { color: '#1a1a2e' }]}
+          style={[styles.eventText, { color: themeColors.textMain }]}
           numberOfLines={1}
         >
           {event.title}
         </Text>
         {!event.isAllDay && (
-          <Text style={styles.eventTime}>{formatTime(event.startDate)}</Text>
+          <Text style={[styles.eventTime, { color: themeColors.textSub }]}>{formatTime(event.startDate)}</Text>
         )}
       </View>
-      <Text style={styles.eventChevron}>›</Text>
+      <Text style={[styles.eventChevron, { color: themeColors.border }]}>›</Text>
     </TouchableOpacity>
   );
 }
@@ -80,19 +81,22 @@ function EventList({
   events,
   onEventPress,
   availableHeight,
+  isDarkMode,
 }: {
   events: NativeCalendarEvent[];
   onEventPress: (e: NativeCalendarEvent) => void;
   availableHeight: number;
+  isDarkMode: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const themeColors = getThemeColors(isDarkMode);
 
   if (events.length === 0) {
     return (
       <View style={styles.emptyState}>
-        <Text style={styles.emptyIcon}>📅</Text>
-        <Text style={styles.noEventsText}>予定はありません</Text>
-        <Text style={styles.noEventsHint}>＋ から予定を追加できます</Text>
+        <Text style={[styles.emptyIcon, { color: themeColors.emptyStateIcon }]}>📅</Text>
+        <Text style={[styles.noEventsText, { color: themeColors.textSub }]}>予定はありません</Text>
+        <Text style={[styles.noEventsHint, { color: themeColors.border }]}>＋ から予定を追加できます</Text>
       </View>
     );
   }
@@ -108,7 +112,7 @@ function EventList({
       showsVerticalScrollIndicator={false}
     >
       {visibleEvents.map((evt) => (
-        <EventItem key={evt.id} event={evt} onPress={onEventPress} />
+        <EventItem key={evt.id} event={evt} onPress={onEventPress} isDarkMode={isDarkMode} />
       ))}
 
       {events.length > MAX_COLLAPSED_EVENTS && (
@@ -137,25 +141,27 @@ function EventActionSheet({
   onClose: () => void;
   onEdit: (e: NativeCalendarEvent) => void;
   onDelete: (e: NativeCalendarEvent) => void;
+  isDarkMode: boolean;
 }) {
   if (!event) return null;
+  const themeColors = getThemeColors(isDarkMode);
   return (
     <TouchableOpacity style={styles.sheetOverlay} onPress={onClose} activeOpacity={1}>
-      <View style={styles.sheetContainer}>
-        <View style={styles.sheetHandle} />
-        <Text style={styles.sheetTitle} numberOfLines={2}>
+      <View style={[styles.sheetContainer, { backgroundColor: themeColors.cardBg }]}>
+        <View style={[styles.sheetHandle, { backgroundColor: isDarkMode ? '#48484A' : '#d1d5db' }]} />
+        <Text style={[styles.sheetTitle, { color: themeColors.textMain }]} numberOfLines={2}>
           📅 {event.title}
         </Text>
-        <Text style={styles.sheetDate}>
+        <Text style={[styles.sheetDate, { color: themeColors.textSub }]}>
           {toDateStr(event.startDate)}{!event.isAllDay ? ` ${formatTime(event.startDate)}` : ''}
         </Text>
-        <View style={styles.sheetDivider} />
+        <View style={[styles.sheetDivider, { backgroundColor: themeColors.border }]} />
         <TouchableOpacity
           style={styles.sheetAction}
           onPress={() => { onClose(); onEdit(event); }}
         >
           <Text style={styles.sheetActionIcon}>✏️</Text>
-          <Text style={styles.sheetActionText}>編集する</Text>
+          <Text style={[styles.sheetActionText, { color: themeColors.textMain }]}>編集する</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.sheetAction, styles.sheetActionDanger]}
@@ -164,8 +170,8 @@ function EventActionSheet({
           <Text style={styles.sheetActionIcon}>🗑️</Text>
           <Text style={[styles.sheetActionText, styles.sheetActionTextDanger]}>削除する</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.sheetCancel} onPress={onClose}>
-          <Text style={styles.sheetCancelText}>キャンセル</Text>
+        <TouchableOpacity style={[styles.sheetCancel, { backgroundColor: isDarkMode ? '#2C2C2E' : '#f1f5f9' }]} onPress={onClose}>
+          <Text style={[styles.sheetCancelText, { color: themeColors.textSub }]}>キャンセル</Text>
         </TouchableOpacity>
       </View>
     </TouchableOpacity>
@@ -175,9 +181,11 @@ function EventActionSheet({
 // ── メイン ────────────────────────────────────────────────────────────────
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
-  const { isBgEnabled, bgUri: fixedBgUri, bgUris, bgMode, appTheme } = useSettingsStore();
+  const { isBgEnabled, bgUri: fixedBgUri, bgUris, bgMode, appTheme, isDarkMode } = useSettingsStore();
   const { getEventsForDate, removeEvent } = useNativeCalendarStore();
   useNativeCalendarStore((state) => state.eventsByDate);
+
+  const themeColors = getThemeColors(isDarkMode);
 
   const { jumpDate, setJumpDate } = useNavigationStore();
 
@@ -248,6 +256,8 @@ export default function HomeScreen() {
     return bgUris[seed % bgUris.length];
   };
 
+  const currentBgGrad = getBackgroundGradient(appTheme, isDarkMode);
+
   const handleEventPress = useCallback((evt: NativeCalendarEvent) => {
     if (Platform.OS === 'ios') {
       ActionSheetIOS.showActionSheetWithOptions(
@@ -299,7 +309,7 @@ export default function HomeScreen() {
     const dateStr   = toDateStr(dObj);
     const dayStr    = DAY_OF_WEEK[dObj.getDay()];
     const todayFlag = toDateStr(dObj) === toDateStr(today);
-    const dayColor  = getDayColor(dObj.getDay());
+    const dayColor  = getDayColor(dObj.getDay(), isDarkMode);
     const bgUri     = getBgUri(dObj);
     const events    = getEventsForDate(dateStr);
 
@@ -309,10 +319,10 @@ export default function HomeScreen() {
     const MONTHS = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
 
     return (
-      <View style={[styles.cardInner, { height: CARD_HEIGHT }]}>
+      <View style={[styles.cardInner, { height: CARD_HEIGHT, backgroundColor: themeColors.cardBg }]}>
 
-        <View style={styles.bindingContainer}>
-          {[1,2,3,4,5,6].map((i) => <View key={i} style={styles.hole} />)}
+        <View style={[styles.bindingContainer, { backgroundColor: themeColors.binding, borderBottomColor: themeColors.border }]}>
+          {[1,2,3,4,5,6].map((i) => <View key={i} style={[styles.hole, { backgroundColor: isDarkMode ? '#111' : '#2c2c2c' }]} />)}
         </View>
 
         {bgUri ? (
@@ -334,40 +344,41 @@ export default function HomeScreen() {
           </View>
         ) : (
           <View style={[styles.noImageHeader, { height: imageH }]}>
-            <LinearGradient colors={getBackgroundGradient(appTheme)} style={StyleSheet.absoluteFill} />
+            <LinearGradient colors={getBackgroundGradient(appTheme, isDarkMode)} style={StyleSheet.absoluteFill} />
             <View style={styles.dateOnNoImage}>
               {todayFlag && (
                 <View style={styles.todayBadge}>
                   <Text style={styles.todayBadgeText}>TODAY</Text>
                 </View>
               )}
-              <Text style={styles.yearMonth}>{year}年 {month}月</Text>
+              <Text style={[styles.yearMonth, { color: isDarkMode ? '#bbb' : '#888' }]}>{year}年 {month}月</Text>
               <Text style={[styles.day, { color: dayColor }]}>{date}</Text>
               <Text style={[styles.dayOfWeek, { color: dayColor }]}>{dayStr}曜日</Text>
             </View>
           </View>
         )}
 
-        <View style={[styles.eventsSection, { flex: 1 }]}>
+        <View style={[styles.eventsSection, { flex: 1, backgroundColor: themeColors.scheduleSection }]}>
           <View style={styles.scheduleHeader}>
             <View style={styles.scheduleAccent} />
-            <Text style={styles.scheduleLabel}>SCHEDULE</Text>
+            <Text style={[styles.scheduleLabel, { color: themeColors.textSub }]}>SCHEDULE</Text>
           </View>
           <View style={{ flex: 1, overflow: 'hidden' }}>
             <EventList
               events={events}
               onEventPress={handleEventPress}
               availableHeight={eventsAreaH}
+              isDarkMode={isDarkMode}
             />
           </View>
-          <Text style={styles.monthLabel}>{MONTHS[month - 1]} {year}</Text>
+          <Text style={[styles.monthLabel, { color: themeColors.border }]}>{MONTHS[month - 1]} {year}</Text>
         </View>
 
       </View>
     );
   };
 
-  const bgGrad = getBackgroundGradient(appTheme);
+  const bgGrad = getBackgroundGradient(appTheme, isDarkMode);
 
   return (
     <LinearGradient colors={bgGrad} style={styles.container} {...panResponder.panHandlers}>
@@ -402,6 +413,7 @@ export default function HomeScreen() {
           onClose={() => setSelectedEvent(null)}
           onEdit={handleEdit}
           onDelete={handleDelete}
+          isDarkMode={isDarkMode}
         />
       )}
     </LinearGradient>

@@ -9,6 +9,7 @@ interface SettingsState {
   bgUris: string[];
   bgMode: 'fixed' | 'random';
   appTheme: AppTheme;
+  isDarkMode: boolean;
   selectedCalendarIds: string[];
   defaultCalendarId: string | null;
   isLoading: boolean;
@@ -19,6 +20,7 @@ interface SettingsState {
   removeBgUri: (uri: string) => Promise<void>;
   setBgMode: (mode: 'fixed' | 'random') => Promise<void>;
   setAppTheme: (theme: AppTheme) => Promise<void>;
+  setDarkMode: (enabled: boolean) => Promise<void>;
   setSelectedCalendarIds: (ids: string[]) => Promise<void>;
   setDefaultCalendarId: (id: string | null) => Promise<void>;
 }
@@ -29,6 +31,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   bgUris: [],
   bgMode: 'fixed',
   appTheme: 'washi',
+  isDarkMode: false,
   selectedCalendarIds: [],
   defaultCalendarId: null,
   isLoading: false,
@@ -42,6 +45,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       bgUris: s.bgUris,
       bgMode: s.bgMode,
       appTheme: s.appTheme,
+      isDarkMode: s.isDarkMode,
       selectedCalendarIds: s.selectedCalendarIds,
       defaultCalendarId: s.defaultCalendarId,
       isLoading: false,
@@ -95,6 +99,11 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   setAppTheme: async (theme) => {
     await setSetting('app_theme', theme);
     set({ appTheme: theme });
+  },
+
+  setDarkMode: async (enabled) => {
+    await setSetting('is_dark_mode', enabled ? '1' : '0');
+    set({ isDarkMode: enabled });
   },
 
   setSelectedCalendarIds: async (ids) => {

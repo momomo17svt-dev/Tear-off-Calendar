@@ -22,6 +22,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useNativeCalendarStore } from '@/store/nativeCalendarStore';
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import { getThemeColors, getBackgroundGradient } from '@/utils/theme';
 
 const THEMES = [
   { key: 'washi',      label: '和紙',  emoji: '📄', colors: ['#FAF7F0', '#F0E8D8'] as [string, string] },
@@ -37,8 +38,10 @@ const THEMES = [
 export default function SettingsScreen() {
   const {
     isBgEnabled, bgUri, bgUris, bgMode, appTheme,
+    isDarkMode,
     selectedCalendarIds,
     setBgEnabled, setBgUri, addBgUri, removeBgUri, setBgMode, setAppTheme,
+    setDarkMode,
     setSelectedCalendarIds,
   } = useSettingsStore();
 
@@ -50,6 +53,8 @@ export default function SettingsScreen() {
   useEffect(() => {
     loadCalendars();
   }, []);
+
+  const themeColors = getThemeColors(isDarkMode);
 
   const handleCalendarToggle = async (calendarId: string, enabled: boolean) => {
     let next: string[];
@@ -103,21 +108,37 @@ export default function SettingsScreen() {
   };
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View style={[styles.container, { paddingTop: insets.top, backgroundColor: themeColors.cardBg }]}>
       <ScrollView
         contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 100 }]}
         showsVerticalScrollIndicator={false}
       >
         {/* ── ヘッダー ── */}
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>設定</Text>
-          <Text style={styles.headerSubtitle}>カレンダーをカスタマイズ</Text>
+          <Text style={[styles.headerTitle, { color: themeColors.textMain }]}>設定</Text>
+          <Text style={[styles.headerSubtitle, { color: themeColors.textSub }]}>カレンダーをカスタマイズ</Text>
+        </View>
+
+        {/* ── ダークモード ── */}
+        <View style={[styles.section, { backgroundColor: isDarkMode ? '#2C2C2E' : '#FFFFFF' }]}>
+          <View style={styles.sectionHeader}>
+            <View>
+              <Text style={[styles.sectionTitle, { color: themeColors.textMain }]}>🌙 ダークモード</Text>
+              <Text style={[styles.sectionDesc, { color: themeColors.textSub }]}>目に優しい配色に切り替えます</Text>
+            </View>
+            <Switch
+              value={isDarkMode}
+              onValueChange={setDarkMode}
+              trackColor={{ false: '#d1d5db', true: '#30d158' }}
+              thumbColor={isDarkMode ? '#ffffff' : '#f4f3f4'}
+            />
+          </View>
         </View>
 
         {/* ── 表示するカレンダー ── */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>📋 表示するカレンダー</Text>
-          <Text style={styles.sectionDesc}>ホーム画面に表示する予定のカレンダーを選択</Text>
+        <View style={[styles.section, { backgroundColor: isDarkMode ? '#2C2C2E' : '#FFFFFF' }]}>
+          <Text style={[styles.sectionTitle, { color: themeColors.textMain }]}>📋 表示するカレンダー</Text>
+          <Text style={[styles.sectionDesc, { color: themeColors.textSub }]}>ホーム画面に表示する予定のカレンダーを選択</Text>
 
           {availableCalendars.length === 0 ? (
             <View style={styles.calendarEmptyState}>
@@ -127,9 +148,9 @@ export default function SettingsScreen() {
           ) : (
             <View style={styles.calendarList}>
               {availableCalendars.map((cal) => (
-                <View key={cal.id} style={styles.calendarRow}>
+                <View key={cal.id} style={[styles.calendarRow, { borderBottomColor: themeColors.border }]}>
                   <View style={[styles.calendarDot, { backgroundColor: cal.color }]} />
-                  <Text style={styles.calendarName} numberOfLines={1}>{cal.title}</Text>
+                  <Text style={[styles.calendarName, { color: themeColors.textMain }]} numberOfLines={1}>{cal.title}</Text>
                   <Switch
                     value={isCalendarEnabled(cal.id)}
                     onValueChange={(v) => handleCalendarToggle(cal.id, v)}
@@ -143,9 +164,9 @@ export default function SettingsScreen() {
         </View>
 
         {/* ── 背景テーマ ── */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>🎨 背景テーマ</Text>
-          <Text style={styles.sectionDesc}>画像が未設定の場合に適用されます</Text>
+        <View style={[styles.section, { backgroundColor: isDarkMode ? '#2C2C2E' : '#FFFFFF' }]}>
+          <Text style={[styles.sectionTitle, { color: themeColors.textMain }]}>🎨 背景テーマ</Text>
+          <Text style={[styles.sectionDesc, { color: themeColors.textSub }]}>画像が未設定の場合に適用されます</Text>
 
           <View style={styles.themeGrid}>
             {THEMES.map((theme) => {
@@ -158,7 +179,7 @@ export default function SettingsScreen() {
                   activeOpacity={0.75}
                 >
                   <LinearGradient
-                    colors={theme.colors}
+                    colors={getBackgroundGradient(theme.key, isDarkMode)}
                     style={styles.themePreview}
                   >
                     <Text style={styles.themeEmoji}>{theme.emoji}</Text>
@@ -178,11 +199,11 @@ export default function SettingsScreen() {
         </View>
 
         {/* ── 背景画像 ── */}
-        <View style={styles.section}>
+        <View style={[styles.section, { backgroundColor: isDarkMode ? '#2C2C2E' : '#FFFFFF' }]}>
           <View style={styles.sectionHeader}>
             <View>
-              <Text style={styles.sectionTitle}>🖼️ 背景画像</Text>
-              <Text style={styles.sectionDesc}>カレンダーに写真を設定</Text>
+              <Text style={[styles.sectionTitle, { color: themeColors.textMain }]}>🖼️ 背景画像</Text>
+              <Text style={[styles.sectionDesc, { color: themeColors.textSub }]}>カレンダーに写真を設定</Text>
             </View>
             <Switch
               value={isBgEnabled}
@@ -196,7 +217,7 @@ export default function SettingsScreen() {
             <>
               {/* 表示モード */}
               <View style={styles.modeContainer}>
-                <Text style={styles.modeLabel}>表示モード</Text>
+                <Text style={[styles.modeLabel, { color: themeColors.textMain }]}>表示モード</Text>
                 <View style={styles.modeSelector}>
                   {(['fixed', 'random'] as const).map((mode) => (
                     <TouchableOpacity
@@ -216,7 +237,7 @@ export default function SettingsScreen() {
               {/* 画像グリッド */}
               <View style={styles.imageSection}>
                 <View style={styles.imageSectionHeader}>
-                  <Text style={styles.imageCount}>
+                  <Text style={[styles.imageCount, { color: themeColors.textSub }]}>
                     {bgUris.length > 0 ? `${bgUris.length}枚の画像` : '画像がありません'}
                   </Text>
                   <TouchableOpacity
@@ -239,8 +260,8 @@ export default function SettingsScreen() {
                 {bgUris.length === 0 ? (
                   <View style={styles.emptyImageState}>
                     <Text style={styles.emptyImageIcon}>📷</Text>
-                    <Text style={styles.emptyImageText}>画像がありません</Text>
-                    <Text style={styles.emptyImageHint}>「追加」ボタンから写真を選んでください</Text>
+                    <Text style={[styles.emptyImageText, { color: themeColors.textSub }]}>画像がありません</Text>
+                    <Text style={[styles.emptyImageHint, { color: themeColors.textSub, opacity: 0.7 }]}>「追加」ボタンから写真を選んでください</Text>
                   </View>
                 ) : (
                   <View style={styles.grid}>
@@ -285,10 +306,10 @@ export default function SettingsScreen() {
         </View>
 
         {/* ── アプリ情報 ── */}
-        <View style={[styles.section, styles.aboutSection]}>
-          <Text style={styles.appName}>📅 日めくりカレンダー</Text>
-          <Text style={styles.appVersion}>Version 1.0.0</Text>
-          <Text style={styles.appDesc}>
+        <View style={[styles.section, styles.aboutSection, { backgroundColor: isDarkMode ? '#2C2C2E' : '#FFFFFF' }]}>
+          <Text style={[styles.appName, { color: themeColors.textMain }]}>📅 日めくりカレンダー</Text>
+          <Text style={[styles.appVersion, { color: themeColors.textSub }]}>Version 1.0.0</Text>
+          <Text style={[styles.appDesc, { color: themeColors.textSub }]}>
             毎日の予定を、お気に入りの写真と一緒に。
           </Text>
         </View>

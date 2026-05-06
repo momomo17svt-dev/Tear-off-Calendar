@@ -62,4 +62,4 @@
 - [x] EAS Build (Expo Application Services) の設定最適化（bundleIdentifier, projectId 等の修正）
 - [x] iOS での EAS Build エラー解消とビルド環境の安定化
 - [x] カレンダー画面のパフォーマンス最適化（イベントが多い日のレンダリング負荷軽減）
-- [ ] ダークモード対応の検討と配色定義
+- [x] ダークモード対応の検討と配色定義
