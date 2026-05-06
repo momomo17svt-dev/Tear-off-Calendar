@@ -39,6 +39,7 @@ export async function fetchNativeEventsForRange(
 
   const allCals = await Calendar.getCalendarsAsync(Calendar.EntityTypes.EVENT);
   const ids = calendarIds.length > 0 ? calendarIds : allCals.map((c) => c.id);
+  if (ids.length === 0) return [];
 
   const raw = await Calendar.getEventsAsync(ids, start, end);
 

@@ -64,6 +64,52 @@ function buildWeeks(year: number, month: number): CellDay[][] {
   return weeks;
 }
 
+// ── 1日分のセル ──────────────────────────────────────────────────────────
+const DayCell = React.memo(({
+  cell,
+  events,
+  isToday,
+  isSun,
+  isSat,
+  onPress
+}: {
+  cell: CellDay;
+  events: any[];
+  isToday: boolean;
+  isSun: boolean;
+  isSat: boolean;
+  onPress: (cell: CellDay) => void;
+}) => {
+  const numColor = !cell.isCurrent
+    ? '#ccc'
+    : isSun ? '#e63946'
+    : isSat ? '#2563eb'
+    : '#1a1a2e';
+
+  return (
+    <TouchableOpacity
+      style={[styles.cell, !cell.isCurrent && styles.cellOther]}
+      onPress={() => onPress(cell)}
+      activeOpacity={0.7}
+    >
+      <View style={[styles.numWrap, isToday && styles.todayCircle]}>
+        <Text style={[styles.dateNum, { color: isToday ? '#fff' : numColor }]}>
+          {cell.day}
+        </Text>
+      </View>
+      <Text style={styles.rokuyo}>{getRokuyo(cell.year, cell.month, cell.day)}</Text>
+      {events.slice(0, 3).map((evt, ei) => (
+        <View key={ei} style={[styles.chip, { backgroundColor: evt.calendarColor ?? '#0a7ea4' }]}>
+          <Text style={styles.chipText} numberOfLines={1}>{evt.title}</Text>
+        </View>
+      ))}
+      {events.length > 3 && (
+        <Text style={styles.moreText}>+{events.length - 3}</Text>
+      )}
+    </TouchableOpacity>
+  );
+});
+
 export default function CalendarScreen() {
   const insets = useSafeAreaInsets();
   const { eventsByDate } = useNativeCalendarStore();
@@ -77,19 +123,20 @@ export default function CalendarScreen() {
 
   const weeks = useMemo(() => buildWeeks(viewYear, viewMonth), [viewYear, viewMonth]);
 
-  const prevMonth = () => {
+  const prevMonth = useCallback(() => {
     if (viewMonth === 1) { setViewYear(y => y - 1); setViewMonth(12); }
     else setViewMonth(m => m - 1);
-  };
-  const nextMonth = () => {
+  }, [viewMonth]);
+
+  const nextMonth = useCallback(() => {
     if (viewMonth === 12) { setViewYear(y => y + 1); setViewMonth(1); }
     else setViewMonth(m => m + 1);
-  };
+  }, [viewMonth]);
 
-  const handleDayPress = (cell: CellDay) => {
+  const handleDayPress = useCallback((cell: CellDay) => {
     setJumpDate(toDateStr(cell.year, cell.month, cell.day));
     router.navigate('/(tabs)');
-  };
+  }, [setJumpDate]);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -119,38 +166,16 @@ export default function CalendarScreen() {
           <View key={wi} style={styles.weekRow}>
             {week.map((cell, di) => {
               const dateStr = toDateStr(cell.year, cell.month, cell.day);
-              const events = eventsByDate[dateStr] ?? [];
-              const isToday = dateStr === todayStr;
-              const isSun = di === 0;
-              const isSat = di === 6;
-              const numColor = !cell.isCurrent
-                ? '#ccc'
-                : isSun ? '#e63946'
-                : isSat ? '#2563eb'
-                : '#1a1a2e';
-
               return (
-                <TouchableOpacity
+                <DayCell
                   key={di}
-                  style={[styles.cell, !cell.isCurrent && styles.cellOther]}
-                  onPress={() => handleDayPress(cell)}
-                  activeOpacity={0.7}
-                >
-                  <View style={[styles.numWrap, isToday && styles.todayCircle]}>
-                    <Text style={[styles.dateNum, { color: isToday ? '#fff' : numColor }]}>
-                      {cell.day}
-                    </Text>
-                  </View>
-                  <Text style={styles.rokuyo}>{getRokuyo(cell.year, cell.month, cell.day)}</Text>
-                  {events.slice(0, 3).map((evt, ei) => (
-                    <View key={ei} style={[styles.chip, { backgroundColor: evt.calendarColor ?? '#0a7ea4' }]}>
-                      <Text style={styles.chipText} numberOfLines={1}>{evt.title}</Text>
-                    </View>
-                  ))}
-                  {events.length > 3 && (
-                    <Text style={styles.moreText}>+{events.length - 3}</Text>
-                  )}
-                </TouchableOpacity>
+                  cell={cell}
+                  events={eventsByDate[dateStr] ?? []}
+                  isToday={dateStr === todayStr}
+                  isSun={di === 0}
+                  isSat={di === 6}
+                  onPress={handleDayPress}
+                />
               );
             })}
           </View>
