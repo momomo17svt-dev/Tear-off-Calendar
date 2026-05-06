@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   Dimensions,
   ScrollView,
@@ -73,13 +73,12 @@ const DayCell = React.memo(({
   isToday,
   isSun,
   isSat,
-  onPress
+  onPress,
+  isDarkMode
 }: {
   cell: CellDay;
   events: any[];
   isToday: boolean;
-  isSun: boolean;
-  isSat: boolean;
   isSun: boolean;
   isSat: boolean;
   onPress: (cell: CellDay) => void;
