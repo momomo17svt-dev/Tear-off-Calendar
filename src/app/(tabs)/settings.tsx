@@ -15,7 +15,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-
+import * as ImageManipulator from 'expo-image-manipulator';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useNativeCalendarStore } from '@/store/nativeCalendarStore';
 import { IconSymbol } from '@/components/ui/icon-symbol';
@@ -112,11 +112,19 @@ export default function SettingsScreen() {
 
       if (!result.canceled && result.assets?.length > 0) {
         const sourceUri = result.assets[0].uri;
+        
+        // 画像をリサイズ・圧縮してパフォーマンス（ちらつき・メモリ使用量）を改善
+        const manipResult = await ImageManipulator.manipulateAsync(
+          sourceUri,
+          [{ resize: { width: 1080 } }], // 横幅を最大1080pxにリサイズ
+          { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
+        );
+        
         const filename = `bg_${Date.now()}.jpg`;
         // 画像をアプリのドキュメントディレクトリに保存（永続化）
         // eslint-disable-next-line import/namespace
         const destUri = FileSystem.documentDirectory + filename;
-        await FileSystem.copyAsync({ from: sourceUri, to: destUri });
+        await FileSystem.copyAsync({ from: manipResult.uri, to: destUri });
         await addBgUri(destUri);
       }
     } catch {
