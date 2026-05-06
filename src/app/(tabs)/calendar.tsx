@@ -67,7 +67,7 @@ function buildWeeks(year: number, month: number): CellDay[][] {
 }
 
 // ── 1日分のセル ──────────────────────────────────────────────────────────
-const DayCell = React.memo(({
+const DayCell = React.memo(function DayCell({
   cell,
   events,
   isToday,
@@ -83,7 +83,7 @@ const DayCell = React.memo(({
   isSat: boolean;
   onPress: (cell: CellDay) => void;
   isDarkMode: boolean;
-}) => {
+}) {
   const themeColors = getThemeColors(isDarkMode);
   const numColor = !cell.isCurrent
     ? (isDarkMode ? '#444' : '#ccc')

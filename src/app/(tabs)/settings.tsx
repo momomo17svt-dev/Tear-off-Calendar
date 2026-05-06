@@ -10,9 +10,6 @@ import {
   Text,
   ActivityIndicator,
 } from 'react-native';
-
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
-const CARD_IMAGE_ASPECT = (SCREEN_WIDTH * 0.88) / (SCREEN_HEIGHT * 0.70 * 0.36);
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import { Image } from 'expo-image';
@@ -23,6 +20,9 @@ import { useSettingsStore } from '@/store/settingsStore';
 import { useNativeCalendarStore } from '@/store/nativeCalendarStore';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { getThemeColors, getBackgroundGradient } from '@/utils/theme';
+
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+const CARD_IMAGE_ASPECT = (SCREEN_WIDTH * 0.88) / (SCREEN_HEIGHT * 0.70 * 0.36);
 
 const THEMES = [
   { key: 'washi',      label: '和紙',  emoji: '📄', colors: ['#FAF7F0', '#F0E8D8'] as [string, string] },

@@ -19,6 +19,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 
 import { useNativeCalendarStore } from '@/store/nativeCalendarStore';
+import { useSettingsStore } from '@/store/settingsStore';
 import { getWritableCalendars, toDateString } from '@/utils/nativeCalendar';
 import { getThemeColors } from '@/utils/theme';
 
@@ -28,6 +29,7 @@ function DatePickerModal({
   date,
   onChange,
   onClose,
+  isDarkMode,
 }: {
   visible: boolean;
   date: Date;
@@ -127,6 +129,7 @@ function CalendarPicker({
 
 // ── メイン ────────────────────────────────────────────────────────────────
 export default function ModalScreen() {
+  const { eventId, dateStr: initialDateStr } = useLocalSearchParams<{ eventId?: string; dateStr?: string }>();
   const isEdit = Boolean(eventId);
 
   const { addEvent, editEvent, removeEvent } = useNativeCalendarStore();

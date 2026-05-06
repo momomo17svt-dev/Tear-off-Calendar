@@ -136,6 +136,7 @@ function EventActionSheet({
   onClose,
   onEdit,
   onDelete,
+  isDarkMode,
 }: {
   event: NativeCalendarEvent | null;
   onClose: () => void;
@@ -255,8 +256,6 @@ export default function HomeScreen() {
     const seed = dObj.getFullYear() * 10000 + (dObj.getMonth() + 1) * 100 + dObj.getDate();
     return bgUris[seed % bgUris.length];
   };
-
-  const currentBgGrad = getBackgroundGradient(appTheme, isDarkMode);
 
   const handleEventPress = useCallback((evt: NativeCalendarEvent) => {
     if (Platform.OS === 'ios') {
