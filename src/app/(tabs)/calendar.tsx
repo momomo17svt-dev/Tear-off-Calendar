@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useState, useRef, useEffect } from 'react';
 import {
   Dimensions,
   StyleSheet,
@@ -10,7 +10,6 @@ import {
   PanResponder,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRef, useEffect } from 'react';
 
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -147,23 +146,31 @@ const DayCell = React.memo(function DayCell({
       onPress={() => onPress(year, month, day)}
       activeOpacity={0.7}
     >
-      <View style={[styles.numWrap, isToday && styles.todayCircle]}>
-        <Text style={[styles.dateNum, { color: isToday ? '#fff' : numColor }]}>
-          {day}
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 2, marginBottom: 2 }}>
+        <View style={[styles.numWrap, isToday && styles.todayCircle, { marginBottom: 0 }]}>
+          <Text style={[styles.dateNum, { color: isToday ? '#fff' : numColor }]}>
+            {day}
+          </Text>
+        </View>
+        <Text style={[styles.rokuyo, { color: themeColors.textSub, marginBottom: 0, paddingLeft: 0 }]} numberOfLines={1}>
+          {getRokuyo(year, month, day)}
         </Text>
       </View>
-      {/* 六曜の表示 */}
-      <Text style={[styles.rokuyo, { color: themeColors.textSub }]}>{getRokuyo(year, month, day)}</Text>
       
-      {/* 予定のチップ（最大3件まで表示） */}
-      {events.slice(0, 3).map((evt, ei) => (
-        <View key={ei} style={[styles.chip, { backgroundColor: evt.calendarColor ?? '#0a7ea4' }]}>
-          <Text style={styles.chipText} numberOfLines={1}>{evt.title}</Text>
-        </View>
-      ))}
-      {/* 4件目以降は件数を表示 */}
-      {events.length > 3 && (
-        <Text style={[styles.moreText, { color: themeColors.textSub }]}>+{events.length - 3}</Text>
+      {/* 予定のチップ（表示制限：はみ出し防止） */}
+      {events.length <= 2 ? (
+        events.map((evt, ei) => (
+          <View key={ei} style={[styles.chip, { backgroundColor: evt.calendarColor ?? '#0a7ea4' }]}>
+            <Text style={styles.chipText} numberOfLines={1}>{evt.title}</Text>
+          </View>
+        ))
+      ) : (
+        <>
+          <View style={[styles.chip, { backgroundColor: events[0].calendarColor ?? '#0a7ea4' }]}>
+            <Text style={styles.chipText} numberOfLines={1}>{events[0].title}</Text>
+          </View>
+          <Text style={[styles.moreText, { color: themeColors.textSub }]}>他 {events.length - 1}件</Text>
+        </>
       )}
     </TouchableOpacity>
   );
@@ -202,7 +209,6 @@ const MonthlyCard = React.memo(function MonthlyCard({
   const weeks = buildWeeks(viewYear, viewMonth);
   const bgGrad = getBackgroundGradient(appTheme, isDarkMode);
 
-  const isTearOff = cardStyle === 'tear-off';
   const isRing = cardStyle === 'ring';
   const isPolaroid = cardStyle === 'polaroid';
   const isMinimal = cardStyle === 'minimal';
@@ -341,7 +347,7 @@ export default function CalendarScreen() {
   const [currentMonthObj, setCurrentMonthObj] = useState<Date>(() => {
     // 前回開いていた月があればそれを復元
     if (lastViewedMonth) {
-      const [y, m, d] = lastViewedMonth.split('-').map(Number);
+      const [y, m] = lastViewedMonth.split('-').map(Number);
       return new Date(y, m - 1, 1);
     }
     const now = new Date();
@@ -584,12 +590,14 @@ const styles = StyleSheet.create({
 
   grid: { flex: 1 },
   weekRow: {
+    flex: 1,
     flexDirection: 'row',
     borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#e0e0e0',
   },
   cell: {
-    width: CELL_W, minHeight: 76, paddingHorizontal: 2, paddingTop: 3, paddingBottom: 3,
+    width: CELL_W, flex: 1, paddingHorizontal: 2, paddingTop: 3, paddingBottom: 2,
     borderRightWidth: StyleSheet.hairlineWidth, borderRightColor: '#e0e0e0',
+    overflow: 'hidden',
   },
   cellOther: { backgroundColor: '#fafafa' },
 

@@ -32,6 +32,7 @@ interface NativeCalendarState {
 
 function getSelectedCalendarIds(): string[] {
   try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { useSettingsStore } = require('@/store/settingsStore');
     return useSettingsStore.getState().selectedCalendarIds ?? [];
   } catch {
