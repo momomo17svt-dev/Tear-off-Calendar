@@ -6,7 +6,7 @@
 import { create } from 'zustand';
 import { getAllSettings, setSetting } from '@/db/settings';
 
-import { AppTheme } from '@/types/settings';
+import { AppTheme, CardStyle } from '@/types/settings';
 
 interface SettingsState {
   isBgEnabled: boolean;
@@ -19,6 +19,7 @@ interface SettingsState {
   defaultCalendarId: string | null;
   lastViewedDay: string | null;
   lastViewedMonth: string | null;
+  cardStyle: CardStyle;
   isLoading: boolean;
   loadSettings: () => Promise<void>;
   setBgEnabled: (enabled: boolean) => Promise<void>;
@@ -32,6 +33,7 @@ interface SettingsState {
   setDefaultCalendarId: (id: string | null) => Promise<void>;
   setLastViewedDay: (date: string) => Promise<void>;
   setLastViewedMonth: (date: string) => Promise<void>;
+  setCardStyle: (style: CardStyle) => Promise<void>;
 }
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({
@@ -46,6 +48,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   defaultCalendarId: null,    // 予定追加時のデフォルトカレンダーID
   lastViewedDay: null,
   lastViewedMonth: null,
+  cardStyle: 'tear-off',      // デフォルトのカードデザイン
   isLoading: false,           // 設定読み込み中フラグ
 
   /**
@@ -67,6 +70,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       defaultCalendarId: s.defaultCalendarId,
       lastViewedDay: s.lastViewedDay,
       lastViewedMonth: s.lastViewedMonth,
+      cardStyle: s.cardStyle,
       isLoading: false,
     });
   },
@@ -143,5 +147,10 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   setLastViewedMonth: async (date) => {
     await setSetting('last_viewed_month', date);
     set({ lastViewedMonth: date });
+  },
+
+  setCardStyle: async (style) => {
+    await setSetting('card_style', style);
+    set({ cardStyle: style });
   },
 }));

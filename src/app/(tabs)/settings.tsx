@@ -44,15 +44,27 @@ const THEMES = [
   { key: 'momiji',     label: '紅葉',  emoji: '🍁', colors: ['#EDA878', '#D4764A'] as [string, string] },
 ] as const;
 
+/**
+ * カードデザインのプリセット定義
+ */
+const CARD_STYLES = [
+  { key: 'tear-off', label: '日めくり', icon: '📄' },
+  { key: 'ring',     label: 'リング',   icon: '📓' },
+  { key: 'polaroid', label: 'ポラロイド', icon: '📸' },
+  { key: 'minimal',  label: 'ミニマル', icon: '📱' },
+] as const;
+
 export default function SettingsScreen() {
   // 設定ストアから状態とアクションを取得
   const {
     isBgEnabled, bgUri, bgUris, bgMode, appTheme,
     isDarkMode,
     selectedCalendarIds,
+    cardStyle,
     setBgEnabled, setBgUri, addBgUri, removeBgUri, setBgMode, setAppTheme,
     setDarkMode,
     setSelectedCalendarIds,
+    setCardStyle,
   } = useSettingsStore();
 
   // ネイティブカレンダー（iOS/Androidのカレンダーアプリ）の状態を取得
@@ -198,6 +210,31 @@ export default function SettingsScreen() {
               ))}
             </View>
           )}
+        </View>
+
+        {/* ── カードデザイン ── */}
+        <View style={[styles.section, { backgroundColor: isDarkMode ? '#2C2C2E' : '#FFFFFF' }]}>
+          <Text style={[styles.sectionTitle, { color: themeColors.textMain }]}>🗂️ カードデザイン</Text>
+          <Text style={[styles.sectionDesc, { color: themeColors.textSub }]}>カレンダーの形状（スタイル）を変更します</Text>
+
+          <View style={styles.cardStyleGrid}>
+            {CARD_STYLES.map((style) => {
+              const isActive = cardStyle === style.key;
+              return (
+                <TouchableOpacity
+                  key={style.key}
+                  style={[styles.cardStyleButton, isActive && styles.cardStyleButtonActive]}
+                  onPress={() => setCardStyle(style.key)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.cardStyleIcon}>{style.icon}</Text>
+                  <Text style={[styles.cardStyleLabel, isActive && styles.cardStyleLabelActive]}>
+                    {style.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
         </View>
 
         {/* ── 背景テーマ（グラデーション/テクスチャ） ── */}
@@ -490,6 +527,41 @@ const styles = StyleSheet.create({
     right: -5,
     backgroundColor: '#fff',
     borderRadius: 12,
+  },
+  // ── カードスタイルセクション ──
+  cardStyleGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginTop: 4,
+  },
+  cardStyleButton: {
+    width: '48%',
+    paddingVertical: 14,
+    borderWidth: 1.5,
+    borderColor: '#e2e8f0',
+    borderRadius: 12,
+    alignItems: 'center',
+    backgroundColor: '#f8fafc',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  cardStyleButtonActive: {
+    backgroundColor: '#0a7ea4',
+    borderColor: '#0a7ea4',
+  },
+  cardStyleIcon: {
+    fontSize: 16,
+  },
+  cardStyleLabel: {
+    fontSize: 14,
+    color: '#64748b',
+    fontWeight: '600',
+  },
+  cardStyleLabelActive: {
+    color: '#fff',
+    fontWeight: '700',
   },
   // ── 表示モードセクション ──
   modeContainer: {

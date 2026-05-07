@@ -11,7 +11,8 @@ export type SettingKey =
   | 'default_calendar_id'    // 予定追加時のデフォルトカレンダーID
   | 'is_dark_mode'           // ダークモード強制設定
   | 'last_viewed_day'        // ホーム画面で最後に表示した日付
-  | 'last_viewed_month';     // カレンダー画面で最後に表示した年月
+  | 'last_viewed_month'      // カレンダー画面で最後に表示した年月
+  | 'card_style';            // カレンダーカードのデザインスタイル
 
 /**
  * SQLite データベースに保存される設定データの1行分
@@ -26,6 +27,11 @@ export interface SettingRow {
  */
 export type AppTheme = 'light-gray' | 'corkboard' | 'wood'
   | 'washi' | 'sakura' | 'matcha' | 'aizome' | 'momiji';
+
+/**
+ * カレンダーカードのデザイン（形状・レイアウト）スタイル
+ */
+export type CardStyle = 'tear-off' | 'ring' | 'polaroid' | 'minimal';
 
 /**
  * アプリケーション内蔵のステートとして扱う設定オブジェクトの型
@@ -51,4 +57,6 @@ export interface AppSettings {
   lastViewedDay: string | null;
   /** カレンダー画面で最後に表示した年月 (YYYY-MM-01) */
   lastViewedMonth: string | null;
+  /** カレンダーカードのスタイル */
+  cardStyle: CardStyle;
 }

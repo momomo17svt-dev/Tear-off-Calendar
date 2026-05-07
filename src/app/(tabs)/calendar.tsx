@@ -18,6 +18,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useNativeCalendarStore } from '@/store/nativeCalendarStore';
 import { useNavigationStore } from '@/store/navigationStore';
 import { useSettingsStore } from '@/store/settingsStore';
+import type { AppTheme, CardStyle } from '@/types/settings';
 import { getThemeColors, getBackgroundGradient } from '@/utils/theme';
 
 /**
@@ -168,11 +169,159 @@ const DayCell = React.memo(function DayCell({
   );
 });
 
+// ── メモ化された月間カレンダーカードコンポーネント ──────────────────────────────
+type MonthlyCardProps = {
+  dObj: Date;
+  themeColors: ReturnType<typeof getThemeColors>;
+  appTheme: AppTheme;
+  isDarkMode: boolean;
+  bgUri: string | null;
+  eventsByDate: Record<string, any[]>;
+  todayStr: string;
+  cardStyle: CardStyle;
+  onPrevMonth: () => void;
+  onNextMonth: () => void;
+  onDayPress: (y: number, m: number, d: number) => void;
+};
+
+const MonthlyCard = React.memo(function MonthlyCard({
+  dObj,
+  themeColors,
+  appTheme,
+  isDarkMode,
+  bgUri,
+  eventsByDate,
+  todayStr,
+  cardStyle,
+  onPrevMonth,
+  onNextMonth,
+  onDayPress,
+}: MonthlyCardProps) {
+  const viewYear = dObj.getFullYear();
+  const viewMonth = dObj.getMonth() + 1;
+  const weeks = buildWeeks(viewYear, viewMonth);
+  const bgGrad = getBackgroundGradient(appTheme, isDarkMode);
+
+  const isTearOff = cardStyle === 'tear-off';
+  const isRing = cardStyle === 'ring';
+  const isPolaroid = cardStyle === 'polaroid';
+  const isMinimal = cardStyle === 'minimal';
+
+  const cardOuterStyle = [
+    styles.cardInner,
+    { height: CARD_HEIGHT, backgroundColor: themeColors.cardBg },
+    isPolaroid && { padding: 12, borderRadius: 8 },
+    isMinimal && { borderRadius: 24, overflow: 'hidden' as const },
+  ];
+
+  const renderBinding = () => {
+    if (isMinimal || isPolaroid) return null;
+
+    if (isRing) {
+      return (
+        <View style={styles.ringBindingContainer}>
+          {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+            <View key={i} style={[styles.ringHole, { backgroundColor: isDarkMode ? '#000' : '#222' }]}>
+              <View style={[styles.ringWire, { backgroundColor: isDarkMode ? '#888' : '#cbd5e1' }]} />
+            </View>
+          ))}
+        </View>
+      );
+    }
+
+    return (
+      <View style={[styles.bindingContainer, { backgroundColor: themeColors.binding, borderBottomColor: themeColors.border }]}>
+        {[1, 2, 3, 4, 5, 6].map((i) => <View key={i} style={[styles.hole, { backgroundColor: isDarkMode ? '#111' : '#2c2c2c' }]} />)}
+      </View>
+    );
+  };
+
+  return (
+    <View style={cardOuterStyle}>
+      {/* カード上部：カレンダーの「綴じ代」とパンチ穴の演出 */}
+      {renderBinding()}
+
+      {/* 上部画像・背景エリア */}
+      <View style={[styles.topHeaderArea, { height: bgUri ? CARD_HEIGHT * 0.35 : 80 }]}>
+        {bgUri ? (
+          <View style={StyleSheet.absoluteFill}>
+            <Image 
+              source={{ uri: bgUri }} 
+              style={StyleSheet.absoluteFill} 
+              contentFit="cover" 
+              transition={0}
+              cachePolicy="memory-disk"
+            />
+            <LinearGradient
+              colors={['transparent', 'rgba(0,0,0,0.6)']}
+              style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '60%' }}
+            />
+          </View>
+        ) : (
+          <LinearGradient colors={bgGrad} style={StyleSheet.absoluteFill} />
+        )}
+        
+        {/* ヘッダー：年月表示と移動ボタン */}
+        <View style={[styles.header, { paddingTop: bgUri ? 0 : 8, borderBottomColor: bgUri ? 'transparent' : themeColors.border }]}>
+          <TouchableOpacity onPress={onPrevMonth} style={styles.navBtn}>
+            <Text style={[styles.navArrow, { color: bgUri ? '#fff' : themeColors.textMain }]}>‹</Text>
+          </TouchableOpacity>
+          <Text style={[
+            styles.headerTitle, 
+            { color: bgUri ? '#fff' : themeColors.textMain },
+            bgUri && styles.textShadow
+          ]}>
+            {viewYear}年{viewMonth}月
+          </Text>
+          <TouchableOpacity onPress={onNextMonth} style={styles.navBtn}>
+            <Text style={[styles.navArrow, { color: bgUri ? '#fff' : themeColors.textMain }]}>›</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* 曜日ラベルの行 */}
+      <View style={[styles.dowRow, { backgroundColor: isDarkMode ? '#1C1C1E' : '#f8f8f8', borderBottomColor: themeColors.border }]}>
+        {DAYS_JP.map((d, i) => (
+          <Text key={d} style={[styles.dowLabel, i === 0 && styles.sunText, i === 6 && styles.satText, { color: (i === 0 || i === 6) ? undefined : themeColors.textSub }]}>
+            {d}
+          </Text>
+        ))}
+      </View>
+
+      {/* カレンダーのグリッド本体 (ジェスチャー競合を防ぐため通常のViewを使用) */}
+      <View style={styles.grid}>
+        {weeks.map((week, wi) => (
+          <View key={wi} style={[styles.weekRow, { borderBottomColor: themeColors.border }]}>
+            {week.map((cell, di) => {
+              const dateStr = toDateStr(cell.year, cell.month, cell.day);
+              return (
+                <DayCell
+                  key={dateStr}
+                  year={cell.year}
+                  month={cell.month}
+                  day={cell.day}
+                  isCurrent={cell.isCurrent}
+                  events={eventsByDate[dateStr] || EMPTY_EVENTS}
+                  isToday={dateStr === todayStr}
+                  isSun={di === 0}
+                  isSat={di === 6}
+                  onPress={onDayPress}
+                  isDarkMode={isDarkMode}
+                />
+              );
+            })}
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+});
+
 export default function CalendarScreen() {
   const insets = useSafeAreaInsets();
   const { eventsByDate } = useNativeCalendarStore();
   const { setJumpDate } = useNavigationStore();
-  const { isDarkMode, isBgEnabled, bgMode, bgUri: fixedBgUri, bgUris, appTheme, lastViewedMonth, setLastViewedMonth } = useSettingsStore();
+  const { isDarkMode, isBgEnabled, bgMode, bgUri: fixedBgUri, bgUris, appTheme, lastViewedMonth, setLastViewedMonth, cardStyle } = useSettingsStore();
 
   const themeColors = getThemeColors(isDarkMode);
 
@@ -269,102 +418,44 @@ export default function CalendarScreen() {
 
   const bgGrad = getBackgroundGradient(appTheme, isDarkMode);
 
-  // 指定された年月のカードを描画する関数
-  const renderMonthCard = (dObj: Date) => {
-    const viewYear = dObj.getFullYear();
-    const viewMonth = dObj.getMonth() + 1;
-    const weeks = buildWeeks(viewYear, viewMonth);
-    const bgUri = getBgUri(dObj);
-
-    return (
-      <View style={[styles.cardInner, { height: CARD_HEIGHT, backgroundColor: themeColors.cardBg }]}>
-        {/* カード上部：カレンダーの「綴じ代」とパンチ穴の演出 */}
-        <View style={[styles.bindingContainer, { backgroundColor: themeColors.binding, borderBottomColor: themeColors.border }]}>
-          {[1, 2, 3, 4, 5, 6].map((i) => <View key={i} style={[styles.hole, { backgroundColor: isDarkMode ? '#111' : '#2c2c2c' }]} />)}
-        </View>
-
-        {/* 上部画像・背景エリア */}
-        <View style={[styles.topHeaderArea, { height: bgUri ? CARD_HEIGHT * 0.35 : 80 }]}>
-          {bgUri ? (
-            <View style={StyleSheet.absoluteFill}>
-              <Image source={{ uri: bgUri }} style={StyleSheet.absoluteFill} contentFit="cover" />
-              <LinearGradient
-                colors={['transparent', 'rgba(0,0,0,0.6)']}
-                style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '60%' }}
-              />
-            </View>
-          ) : (
-            <LinearGradient colors={bgGrad} style={StyleSheet.absoluteFill} />
-          )}
-          
-          {/* ヘッダー：年月表示と移動ボタン */}
-          <View style={[styles.header, { paddingTop: bgUri ? 0 : 8, borderBottomColor: bgUri ? 'transparent' : themeColors.border }]}>
-            <TouchableOpacity onPress={animateToPrevMonth} style={styles.navBtn}>
-              <Text style={[styles.navArrow, { color: bgUri ? '#fff' : themeColors.textMain }]}>‹</Text>
-            </TouchableOpacity>
-            <Text style={[
-              styles.headerTitle, 
-              { color: bgUri ? '#fff' : themeColors.textMain },
-              bgUri && styles.textShadow
-            ]}>
-              {viewYear}年{viewMonth}月
-            </Text>
-            <TouchableOpacity onPress={animateToNextMonth} style={styles.navBtn}>
-              <Text style={[styles.navArrow, { color: bgUri ? '#fff' : themeColors.textMain }]}>›</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* 曜日ラベルの行 */}
-        <View style={[styles.dowRow, { backgroundColor: isDarkMode ? '#1C1C1E' : '#f8f8f8', borderBottomColor: themeColors.border }]}>
-          {DAYS_JP.map((d, i) => (
-            <Text key={d} style={[styles.dowLabel, i === 0 && styles.sunText, i === 6 && styles.satText, { color: (i === 0 || i === 6) ? undefined : themeColors.textSub }]}>
-              {d}
-            </Text>
-          ))}
-        </View>
-
-        {/* カレンダーのグリッド本体 (ジェスチャー競合を防ぐため通常のViewを使用) */}
-        <View style={styles.grid}>
-          {weeks.map((week, wi) => (
-            <View key={wi} style={[styles.weekRow, { borderBottomColor: themeColors.border }]}>
-              {week.map((cell, di) => {
-                const dateStr = toDateStr(cell.year, cell.month, cell.day);
-                return (
-                  <DayCell
-                    key={dateStr}
-                    year={cell.year}
-                    month={cell.month}
-                    day={cell.day}
-                    isCurrent={cell.isCurrent}
-                    events={eventsByDate[dateStr] || EMPTY_EVENTS}
-                    isToday={dateStr === todayStr}
-                    isSun={di === 0}
-                    isSat={di === 6}
-                    onPress={handleDayPress}
-                    isDarkMode={isDarkMode}
-                  />
-                );
-              })}
-            </View>
-          ))}
-        </View>
-      </View>
-    );
-  };
+  const isCurrentMonthView = currentMonthObj.getFullYear() === today.getFullYear() && currentMonthObj.getMonth() === today.getMonth();
 
   return (
     <LinearGradient colors={bgGrad} style={styles.container} {...panResponder.panHandlers}>
       <View style={[styles.inner, { paddingTop: insets.top + 8, paddingBottom: insets.bottom + 88 }]}>
         {/* 第1層（最背面）：次月 */}
         <Animated.View style={[styles.card, styles.absolute]}>
-          {renderMonthCard(nextMonthObj)}
+          <MonthlyCard
+            dObj={nextMonthObj}
+            themeColors={themeColors}
+            appTheme={appTheme}
+            isDarkMode={isDarkMode}
+            bgUri={getBgUri(nextMonthObj)}
+            eventsByDate={eventsByDate}
+            todayStr={todayStr}
+            cardStyle={cardStyle}
+            onPrevMonth={animateToPrevMonth}
+            onNextMonth={animateToNextMonth}
+            onDayPress={handleDayPress}
+          />
         </Animated.View>
 
         {/* 第2層（前面）：今月。指の動きに合わせて動く */}
         <Animated.View style={[styles.card, styles.absolute, styles.shadow,
         { transform: [{ translateY: currentTranslateY }, { rotateZ: currentRotateZ }] }]}>
-          {renderMonthCard(currentMonthObj)}
+          <MonthlyCard
+            dObj={currentMonthObj}
+            themeColors={themeColors}
+            appTheme={appTheme}
+            isDarkMode={isDarkMode}
+            bgUri={getBgUri(currentMonthObj)}
+            eventsByDate={eventsByDate}
+            todayStr={todayStr}
+            cardStyle={cardStyle}
+            onPrevMonth={animateToPrevMonth}
+            onNextMonth={animateToNextMonth}
+            onDayPress={handleDayPress}
+          />
         </Animated.View>
 
         {/* 第3層（最前面）：先月。普段は画面外に待機 */}
@@ -373,9 +464,34 @@ export default function CalendarScreen() {
           { transform: [{ translateY: prevTranslateY }, { rotateZ: prevRotateZ }] }]}
           pointerEvents="none"
         >
-          {renderMonthCard(prevMonthObj)}
+          <MonthlyCard
+            dObj={prevMonthObj}
+            themeColors={themeColors}
+            appTheme={appTheme}
+            isDarkMode={isDarkMode}
+            bgUri={getBgUri(prevMonthObj)}
+            eventsByDate={eventsByDate}
+            todayStr={todayStr}
+            cardStyle={cardStyle}
+            onPrevMonth={animateToPrevMonth}
+            onNextMonth={animateToNextMonth}
+            onDayPress={handleDayPress}
+          />
         </Animated.View>
       </View>
+
+      {/* 今月ではない場合に表示される「今月に戻る」ボタン */}
+      {!isCurrentMonthView && (
+        <TouchableOpacity
+          style={[styles.todayReturnButton, { top: insets.top + 12, right: 16 }]}
+          onPress={() => {
+            setCurrentMonthObj(new Date(today.getFullYear(), today.getMonth(), 1));
+          }}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.todayReturnText}>今月に戻る</Text>
+        </TouchableOpacity>
+      )}
     </LinearGradient>
   );
 }
@@ -408,6 +524,36 @@ const styles = StyleSheet.create({
     width: 14, height: 14, borderRadius: 7, backgroundColor: '#2c2c2c',
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.6, shadowRadius: 3, elevation: 3,
+  },
+
+  // ── 新規追加：リングノート風バインディング ──
+  ringBindingContainer: {
+    height: BINDING_H,
+    flexDirection: 'row',
+    justifyContent: 'space-evenly',
+    alignItems: 'center',
+    width: '100%',
+    paddingHorizontal: 20,
+    backgroundColor: 'transparent',
+    paddingBottom: 4,
+  },
+  ringHole: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+  },
+  ringWire: {
+    width: 4,
+    height: 24,
+    borderRadius: 2,
+    marginTop: -12,
+    shadowColor: '#000',
+    shadowOffset: { width: 1, height: 1 },
+    shadowOpacity: 0.3,
+    shadowRadius: 1,
+    elevation: 2,
   },
 
   topHeaderArea: {
@@ -456,4 +602,29 @@ const styles = StyleSheet.create({
   chip: { borderRadius: 3, paddingHorizontal: 2, paddingVertical: 1, marginBottom: 1 },
   chipText: { fontSize: 9, color: '#fff', fontWeight: '500' },
   moreText: { fontSize: 8, color: '#999', paddingLeft: 1 },
+
+  // 今月へ戻るボタン
+  todayReturnButton: {
+    position: 'absolute',
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 4,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#e2e8f0',
+    zIndex: 50,
+  },
+  todayReturnText: {
+    color: '#0a7ea4',
+    fontWeight: '700',
+    fontSize: 12,
+    letterSpacing: 0.5,
+  },
 });

@@ -3,7 +3,7 @@
  * SQLiteの settings テーブルに対するCRUD操作を提供します。
  */
 import { getDb } from './database';
-import type { AppSettings, SettingKey, SettingRow } from '@/types/settings';
+import type { AppSettings, CardStyle, SettingKey, SettingRow } from '@/types/settings';
 
 /**
  * 単一の設定値を取得する
@@ -75,5 +75,6 @@ export async function getAllSettings(): Promise<AppSettings> {
     defaultCalendarId: (map.get('default_calendar_id') ?? '') || null,
     lastViewedDay: (map.get('last_viewed_day') ?? '') || null,
     lastViewedMonth: (map.get('last_viewed_month') ?? '') || null,
+    cardStyle: (map.get('card_style') as CardStyle) || 'tear-off',
   };
 }
