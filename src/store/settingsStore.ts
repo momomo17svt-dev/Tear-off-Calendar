@@ -17,6 +17,8 @@ interface SettingsState {
   isDarkMode: boolean;
   selectedCalendarIds: string[];
   defaultCalendarId: string | null;
+  lastViewedDay: string | null;
+  lastViewedMonth: string | null;
   isLoading: boolean;
   loadSettings: () => Promise<void>;
   setBgEnabled: (enabled: boolean) => Promise<void>;
@@ -28,6 +30,8 @@ interface SettingsState {
   setDarkMode: (enabled: boolean) => Promise<void>;
   setSelectedCalendarIds: (ids: string[]) => Promise<void>;
   setDefaultCalendarId: (id: string | null) => Promise<void>;
+  setLastViewedDay: (date: string) => Promise<void>;
+  setLastViewedMonth: (date: string) => Promise<void>;
 }
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({
@@ -40,6 +44,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   isDarkMode: false,          // ダークモードの有効フラグ
   selectedCalendarIds: [],    // 表示対象として選択されたシステムカレンダーのID
   defaultCalendarId: null,    // 予定追加時のデフォルトカレンダーID
+  lastViewedDay: null,
+  lastViewedMonth: null,
   isLoading: false,           // 設定読み込み中フラグ
 
   /**
@@ -59,6 +65,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       isDarkMode: s.isDarkMode,
       selectedCalendarIds: s.selectedCalendarIds,
       defaultCalendarId: s.defaultCalendarId,
+      lastViewedDay: s.lastViewedDay,
+      lastViewedMonth: s.lastViewedMonth,
       isLoading: false,
     });
   },
@@ -125,5 +133,15 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   setDefaultCalendarId: async (id) => {
     await setSetting('default_calendar_id', id ?? '');
     set({ defaultCalendarId: id });
+  },
+
+  setLastViewedDay: async (date) => {
+    await setSetting('last_viewed_day', date);
+    set({ lastViewedDay: date });
+  },
+
+  setLastViewedMonth: async (date) => {
+    await setSetting('last_viewed_month', date);
+    set({ lastViewedMonth: date });
   },
 }));

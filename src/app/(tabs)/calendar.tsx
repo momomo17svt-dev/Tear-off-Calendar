@@ -2,27 +2,35 @@ import { router } from 'expo-router';
 import React, { useCallback, useMemo, useState } from 'react';
 import {
   Dimensions,
-  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
+  Animated,
+  PanResponder,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRef, useEffect } from 'react';
+
+import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
 
 import { useNativeCalendarStore } from '@/store/nativeCalendarStore';
 import { useNavigationStore } from '@/store/navigationStore';
 import { useSettingsStore } from '@/store/settingsStore';
-import { getThemeColors } from '@/utils/theme';
+import { getThemeColors, getBackgroundGradient } from '@/utils/theme';
 
 /**
  * 月間カレンダー画面
  * 予定の有無を一覧で確認でき、日付を選択するとその日の詳細（日めくり画面）へ移動します。
  */
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-// 1セルあたりの幅（画面幅を7分割）
-const CELL_W = Math.floor(SCREEN_WIDTH / 7);
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+const CARD_WIDTH = SCREEN_WIDTH * 0.90;
+const CARD_HEIGHT = SCREEN_HEIGHT * 0.74;
+const BINDING_H = 32;
+// 1セルあたりの幅（カード幅を7分割）
+const CELL_W = Math.floor(CARD_WIDTH / 7);
 
 const DAYS_JP = ['日', '月', '火', '水', '木', '金', '土'];
 const ROKUYO_LABELS = ['先勝', '友引', '先負', '仏滅', '大安', '赤口'];
@@ -58,6 +66,8 @@ function getRokuyo(year: number, month: number, day: number): string {
 function toDateStr(y: number, m: number, d: number): string {
   return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
 }
+
+const EMPTY_EVENTS: any[] = [];
 
 type CellDay = { year: number; month: number; day: number; isCurrent: boolean };
 
@@ -95,7 +105,10 @@ function buildWeeks(year: number, month: number): CellDay[][] {
  * 1日分のセルコンポーネント
  */
 const DayCell = React.memo(function DayCell({
-  cell,
+  year,
+  month,
+  day,
+  isCurrent,
   events,
   isToday,
   isSun,
@@ -103,18 +116,21 @@ const DayCell = React.memo(function DayCell({
   onPress,
   isDarkMode
 }: {
-  cell: CellDay;
+  year: number;
+  month: number;
+  day: number;
+  isCurrent: boolean;
   events: any[];
   isToday: boolean;
   isSun: boolean;
   isSat: boolean;
-  onPress: (cell: CellDay) => void;
+  onPress: (y: number, m: number, d: number) => void;
   isDarkMode: boolean;
 }) {
   const themeColors = getThemeColors(isDarkMode);
   
   // 文字色の決定（今日、土日、他月などで分岐）
-  const numColor = !cell.isCurrent
+  const numColor = !isCurrent
     ? (isDarkMode ? '#444' : '#ccc')
     : isSun ? '#e63946'
     : isSat ? '#2563eb'
@@ -125,18 +141,18 @@ const DayCell = React.memo(function DayCell({
       style={[
         styles.cell,
         { borderRightColor: themeColors.border },
-        !cell.isCurrent && (isDarkMode ? { backgroundColor: '#161618' } : styles.cellOther)
+        !isCurrent && (isDarkMode ? { backgroundColor: '#161618' } : styles.cellOther)
       ]}
-      onPress={() => onPress(cell)}
+      onPress={() => onPress(year, month, day)}
       activeOpacity={0.7}
     >
       <View style={[styles.numWrap, isToday && styles.todayCircle]}>
         <Text style={[styles.dateNum, { color: isToday ? '#fff' : numColor }]}>
-          {cell.day}
+          {day}
         </Text>
       </View>
       {/* 六曜の表示 */}
-      <Text style={[styles.rokuyo, { color: themeColors.textSub }]}>{getRokuyo(cell.year, cell.month, cell.day)}</Text>
+      <Text style={[styles.rokuyo, { color: themeColors.textSub }]}>{getRokuyo(year, month, day)}</Text>
       
       {/* 予定のチップ（最大3件まで表示） */}
       {events.slice(0, 3).map((evt, ei) => (
@@ -156,104 +172,261 @@ export default function CalendarScreen() {
   const insets = useSafeAreaInsets();
   const { eventsByDate } = useNativeCalendarStore();
   const { setJumpDate } = useNavigationStore();
-  const { isDarkMode } = useSettingsStore();
+  const { isDarkMode, isBgEnabled, bgMode, bgUri: fixedBgUri, bgUris, appTheme, lastViewedMonth, setLastViewedMonth } = useSettingsStore();
 
   const themeColors = getThemeColors(isDarkMode);
+
+  // 背景画像のURIを取得（固定モード or 日替わりランダムモード）
+  const getBgUri = (dObj: Date) => {
+    if (!isBgEnabled || bgUris.length === 0) return null;
+    if (bgMode === 'fixed') return fixedBgUri || bgUris[0];
+    // 素数を用いたハッシュ計算で、月や日が切り替わった際にきちんとインデックスが変動するようにする
+    const seed = dObj.getFullYear() * 373 + (dObj.getMonth() + 1) * 31 + dObj.getDate();
+    return bgUris[seed % bgUris.length];
+  };
 
   const today = new Date();
   const todayStr = toDateStr(today.getFullYear(), today.getMonth() + 1, today.getDate());
 
-  // 表示している年月
-  const [viewYear, setViewYear] = useState(today.getFullYear());
-  const [viewMonth, setViewMonth] = useState(today.getMonth() + 1);
+  // アニメーション用に3つの月状態（1日のDateオブジェクト）を管理
+  const [currentMonthObj, setCurrentMonthObj] = useState<Date>(() => {
+    // 前回開いていた月があればそれを復元
+    if (lastViewedMonth) {
+      const [y, m, d] = lastViewedMonth.split('-').map(Number);
+      return new Date(y, m - 1, 1);
+    }
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  });
+  const [prevMonthObj, setPrevMonthObj] = useState(() => new Date(today.getFullYear(), today.getMonth() - 1, 1));
+  const [nextMonthObj, setNextMonthObj] = useState(() => new Date(today.getFullYear(), today.getMonth() + 1, 1));
 
-  // グリッドデータの計算（メモ化）
-  const weeks = useMemo(() => buildWeeks(viewYear, viewMonth), [viewYear, viewMonth]);
+  const pan = useRef(new Animated.ValueXY()).current;
+  const lastMonthRef = useRef(currentMonthObj);
 
-  /**
-   * 前の月へ
-   */
-  const prevMonth = useCallback(() => {
-    if (viewMonth === 1) { setViewYear(y => y - 1); setViewMonth(12); }
-    else setViewMonth(m => m - 1);
-  }, [viewMonth]);
+  // 月が切り替わった際のクリーンアップと隣接月の更新
+  useEffect(() => {
+    if (lastMonthRef.current.getTime() !== currentMonthObj.getTime()) {
+      lastMonthRef.current = currentMonthObj;
+      pan.setValue({ x: 0, y: 0 }); // アニメーション座標をリセット
+      setNextMonthObj(new Date(currentMonthObj.getFullYear(), currentMonthObj.getMonth() + 1, 1));
+      setPrevMonthObj(new Date(currentMonthObj.getFullYear(), currentMonthObj.getMonth() - 1, 1));
+      
+      // 最後に表示した月を保存
+      setLastViewedMonth(toDateStr(currentMonthObj.getFullYear(), currentMonthObj.getMonth() + 1, 1));
+    }
+  }, [currentMonthObj, pan, setLastViewedMonth]);
 
-  /**
-   * 次の月へ
-   */
-  const nextMonth = useCallback(() => {
-    if (viewMonth === 12) { setViewYear(y => y + 1); setViewMonth(1); }
-    else setViewMonth(m => m + 1);
-  }, [viewMonth]);
+  const panResponder = useRef(
+    PanResponder.create({
+      // 垂直方向に一定以上動かした場合のみジェスチャーを開始
+      onMoveShouldSetPanResponder: (_, gs) => Math.abs(gs.dy) > 10 && Math.abs(gs.dy) > Math.abs(gs.dx),
+      onPanResponderMove: Animated.event([null, { dy: pan.y }], { useNativeDriver: false }),
+      onPanResponderRelease: (_, gs) => {
+        // 下に 120px 以上スワイプ ➔ 「今の月」を破り捨てて「来月」へ
+        if (gs.dy > 120) {
+          Animated.timing(pan.y, { toValue: 900, duration: 260, useNativeDriver: true }).start(() => {
+            setCurrentMonthObj(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
+          });
+        } 
+        // 上に 120px 以上スワイプ ➔ 「先月」を引っ張って戻す
+        else if (gs.dy < -120) {
+          Animated.timing(pan.y, { toValue: -900, duration: 260, useNativeDriver: true }).start(() => {
+            setCurrentMonthObj(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
+          });
+        } 
+        // 勢いが足りなければ元の位置にバネで戻る
+        else {
+          Animated.spring(pan, { toValue: { x: 0, y: 0 }, useNativeDriver: true, bounciness: 10 }).start();
+        }
+      },
+    })
+  ).current;
 
-  /**
-   * 日付をタップした際の処理
-   * 指定日をセットしてメインのタブへ移動
-   */
-  const handleDayPress = useCallback((cell: CellDay) => {
-    setJumpDate(toDateStr(cell.year, cell.month, cell.day));
+  // アニメーションの補間設定
+  const currentTranslateY = pan.y.interpolate({ inputRange: [0, 900], outputRange: [0, 900], extrapolate: 'clamp' });
+  const currentRotateZ = pan.y.interpolate({ inputRange: [0, 900], outputRange: ['0deg', '8deg'], extrapolate: 'clamp' });
+  const prevTranslateY = pan.y.interpolate({ inputRange: [-900, 0], outputRange: [0, 900], extrapolate: 'clamp' });
+  const prevRotateZ = pan.y.interpolate({ inputRange: [-900, 0], outputRange: ['0deg', '-8deg'], extrapolate: 'clamp' });
+
+  // ボタン操作による月移動
+  const animateToNextMonth = () => {
+    Animated.timing(pan.y, { toValue: 900, duration: 260, useNativeDriver: true }).start(() => {
+      setCurrentMonthObj(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
+    });
+  };
+
+  const animateToPrevMonth = () => {
+    Animated.timing(pan.y, { toValue: -900, duration: 260, useNativeDriver: true }).start(() => {
+      setCurrentMonthObj(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
+    });
+  };
+
+  const handleDayPress = useCallback((y: number, m: number, d: number) => {
+    setJumpDate(toDateStr(y, m, d));
     router.navigate('/(tabs)');
   }, [setJumpDate]);
 
-  return (
-    <View style={[styles.container, { paddingTop: insets.top, backgroundColor: themeColors.cardBg }]}>
-      {/* ヘッダー：年月表示と移動ボタン */}
-      <View style={[styles.header, { borderBottomColor: themeColors.border }]}>
-        <TouchableOpacity onPress={prevMonth} style={styles.navBtn}>
-          <Text style={[styles.navArrow, { color: themeColors.textMain }]}>‹</Text>
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: themeColors.textMain }]}>{viewYear}年{viewMonth}月</Text>
-        <TouchableOpacity onPress={nextMonth} style={styles.navBtn}>
-          <Text style={[styles.navArrow, { color: themeColors.textMain }]}>›</Text>
-        </TouchableOpacity>
-      </View>
+  const bgGrad = getBackgroundGradient(appTheme, isDarkMode);
 
-      {/* 曜日ラベルの行 */}
-      <View style={[styles.dowRow, { backgroundColor: isDarkMode ? '#1C1C1E' : '#f8f8f8', borderBottomColor: themeColors.border }]}>
-        {DAYS_JP.map((d, i) => (
-          <Text key={d} style={[styles.dowLabel, i === 0 && styles.sunText, i === 6 && styles.satText, { color: (i === 0 || i === 6) ? undefined : themeColors.textSub }]}>
-            {d}
-          </Text>
-        ))}
-      </View>
+  // 指定された年月のカードを描画する関数
+  const renderMonthCard = (dObj: Date) => {
+    const viewYear = dObj.getFullYear();
+    const viewMonth = dObj.getMonth() + 1;
+    const weeks = buildWeeks(viewYear, viewMonth);
+    const bgUri = getBgUri(dObj);
 
-      {/* カレンダーのグリッド本体 */}
-      <ScrollView showsVerticalScrollIndicator={false} style={styles.grid}>
-        {weeks.map((week, wi) => (
-          <View key={wi} style={[styles.weekRow, { borderBottomColor: themeColors.border }]}>
-            {week.map((cell, di) => {
-              const dateStr = toDateStr(cell.year, cell.month, cell.day);
-              return (
-                <DayCell
-                  key={di}
-                  cell={cell}
-                  events={eventsByDate[dateStr] ?? []}
-                  isToday={dateStr === todayStr}
-                  isSun={di === 0}
-                  isSat={di === 6}
-                  onPress={handleDayPress}
-                  isDarkMode={isDarkMode}
-                />
-              );
-            })}
+    return (
+      <View style={[styles.cardInner, { height: CARD_HEIGHT, backgroundColor: themeColors.cardBg }]}>
+        {/* カード上部：カレンダーの「綴じ代」とパンチ穴の演出 */}
+        <View style={[styles.bindingContainer, { backgroundColor: themeColors.binding, borderBottomColor: themeColors.border }]}>
+          {[1, 2, 3, 4, 5, 6].map((i) => <View key={i} style={[styles.hole, { backgroundColor: isDarkMode ? '#111' : '#2c2c2c' }]} />)}
+        </View>
+
+        {/* 上部画像・背景エリア */}
+        <View style={[styles.topHeaderArea, { height: bgUri ? CARD_HEIGHT * 0.35 : 80 }]}>
+          {bgUri ? (
+            <View style={StyleSheet.absoluteFill}>
+              <Image source={{ uri: bgUri }} style={StyleSheet.absoluteFill} contentFit="cover" />
+              <LinearGradient
+                colors={['transparent', 'rgba(0,0,0,0.6)']}
+                style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '60%' }}
+              />
+            </View>
+          ) : (
+            <LinearGradient colors={bgGrad} style={StyleSheet.absoluteFill} />
+          )}
+          
+          {/* ヘッダー：年月表示と移動ボタン */}
+          <View style={[styles.header, { paddingTop: bgUri ? 0 : 8, borderBottomColor: bgUri ? 'transparent' : themeColors.border }]}>
+            <TouchableOpacity onPress={animateToPrevMonth} style={styles.navBtn}>
+              <Text style={[styles.navArrow, { color: bgUri ? '#fff' : themeColors.textMain }]}>‹</Text>
+            </TouchableOpacity>
+            <Text style={[
+              styles.headerTitle, 
+              { color: bgUri ? '#fff' : themeColors.textMain },
+              bgUri && styles.textShadow
+            ]}>
+              {viewYear}年{viewMonth}月
+            </Text>
+            <TouchableOpacity onPress={animateToNextMonth} style={styles.navBtn}>
+              <Text style={[styles.navArrow, { color: bgUri ? '#fff' : themeColors.textMain }]}>›</Text>
+            </TouchableOpacity>
           </View>
-        ))}
-      </ScrollView>
-    </View>
+        </View>
+
+        {/* 曜日ラベルの行 */}
+        <View style={[styles.dowRow, { backgroundColor: isDarkMode ? '#1C1C1E' : '#f8f8f8', borderBottomColor: themeColors.border }]}>
+          {DAYS_JP.map((d, i) => (
+            <Text key={d} style={[styles.dowLabel, i === 0 && styles.sunText, i === 6 && styles.satText, { color: (i === 0 || i === 6) ? undefined : themeColors.textSub }]}>
+              {d}
+            </Text>
+          ))}
+        </View>
+
+        {/* カレンダーのグリッド本体 (ジェスチャー競合を防ぐため通常のViewを使用) */}
+        <View style={styles.grid}>
+          {weeks.map((week, wi) => (
+            <View key={wi} style={[styles.weekRow, { borderBottomColor: themeColors.border }]}>
+              {week.map((cell, di) => {
+                const dateStr = toDateStr(cell.year, cell.month, cell.day);
+                return (
+                  <DayCell
+                    key={dateStr}
+                    year={cell.year}
+                    month={cell.month}
+                    day={cell.day}
+                    isCurrent={cell.isCurrent}
+                    events={eventsByDate[dateStr] || EMPTY_EVENTS}
+                    isToday={dateStr === todayStr}
+                    isSun={di === 0}
+                    isSat={di === 6}
+                    onPress={handleDayPress}
+                    isDarkMode={isDarkMode}
+                  />
+                );
+              })}
+            </View>
+          ))}
+        </View>
+      </View>
+    );
+  };
+
+  return (
+    <LinearGradient colors={bgGrad} style={styles.container} {...panResponder.panHandlers}>
+      <View style={[styles.inner, { paddingTop: insets.top + 8, paddingBottom: insets.bottom + 88 }]}>
+        {/* 第1層（最背面）：次月 */}
+        <Animated.View style={[styles.card, styles.absolute]}>
+          {renderMonthCard(nextMonthObj)}
+        </Animated.View>
+
+        {/* 第2層（前面）：今月。指の動きに合わせて動く */}
+        <Animated.View style={[styles.card, styles.absolute, styles.shadow,
+        { transform: [{ translateY: currentTranslateY }, { rotateZ: currentRotateZ }] }]}>
+          {renderMonthCard(currentMonthObj)}
+        </Animated.View>
+
+        {/* 第3層（最前面）：先月。普段は画面外に待機 */}
+        <Animated.View
+          style={[styles.card, styles.absolute, styles.shadow,
+          { transform: [{ translateY: prevTranslateY }, { rotateZ: prevRotateZ }] }]}
+          pointerEvents="none"
+        >
+          {renderMonthCard(prevMonthObj)}
+        </Animated.View>
+      </View>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
+  container: { flex: 1 },
+  inner: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  card: { 
+    width: CARD_WIDTH, 
+    height: CARD_HEIGHT, 
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  cardInner: { width: '100%', flexDirection: 'column' },
+  absolute: { position: 'absolute' },
+  shadow: {
+    shadowColor: '#000', shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.18, shadowRadius: 24, elevation: 12,
+  },
 
+  bindingContainer: {
+    height: BINDING_H,
+    backgroundColor: '#f1f3f5',
+    flexDirection: 'row', justifyContent: 'space-evenly', alignItems: 'center',
+    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#e0e0e0',
+    paddingHorizontal: 24,
+  },
+  hole: {
+    width: 14, height: 14, borderRadius: 7, backgroundColor: '#2c2c2c',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.6, shadowRadius: 3, elevation: 3,
+  },
+
+  topHeaderArea: {
+    width: '100%',
+    justifyContent: 'flex-end',
+  },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 12, paddingVertical: 8,
-    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#e0e0e0',
+    paddingHorizontal: 12, paddingBottom: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  headerTitle: { fontSize: 17, fontWeight: '700', color: '#1a1a2e' },
-  navBtn: { padding: 8 },
-  navArrow: { fontSize: 28, color: '#1a1a2e', lineHeight: 32 },
+  headerTitle: { fontSize: 18, fontWeight: '700', color: '#1a1a2e' },
+  navBtn: { padding: 8, paddingHorizontal: 16 },
+  navArrow: { fontSize: 32, color: '#1a1a2e', lineHeight: 36 },
+  textShadow: {
+    textShadowColor: 'rgba(0,0,0,0.4)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
+  },
 
   dowRow: {
     flexDirection: 'row', backgroundColor: '#f8f8f8',

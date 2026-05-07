@@ -9,7 +9,9 @@ export type SettingKey =
   | 'app_theme'               // アプリ全体のデザインテーマ
   | 'selected_calendar_ids'  // 表示対象として選択されたカレンダーID
   | 'default_calendar_id'    // 予定追加時のデフォルトカレンダーID
-  | 'is_dark_mode';          // ダークモード強制設定
+  | 'is_dark_mode'           // ダークモード強制設定
+  | 'last_viewed_day'        // ホーム画面で最後に表示した日付
+  | 'last_viewed_month';     // カレンダー画面で最後に表示した年月
 
 /**
  * SQLite データベースに保存される設定データの1行分
@@ -45,4 +47,8 @@ export interface AppSettings {
   selectedCalendarIds: string[];
   /** 予定作成時にデフォルトで選択されるカレンダーID */
   defaultCalendarId: string | null;
+  /** ホーム画面で最後に表示した日付 (YYYY-MM-DD) */
+  lastViewedDay: string | null;
+  /** カレンダー画面で最後に表示した年月 (YYYY-MM-01) */
+  lastViewedMonth: string | null;
 }

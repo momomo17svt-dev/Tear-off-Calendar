@@ -200,7 +200,7 @@ function EventActionSheet({
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   // ストアから設定とカレンダーデータを取得
-  const { isBgEnabled, bgUri: fixedBgUri, bgUris, bgMode, appTheme, isDarkMode } = useSettingsStore();
+  const { isBgEnabled, bgUri: fixedBgUri, bgUris, bgMode, appTheme, isDarkMode, lastViewedDay, setLastViewedDay } = useSettingsStore();
   const { getEventsForDate, removeEvent } = useNativeCalendarStore();
   useNativeCalendarStore((state) => state.eventsByDate); // 更新監視用
 
@@ -214,9 +214,22 @@ export default function HomeScreen() {
    * カレンダーの「3枚の紙」の状態管理
    * 物理的に紙を破って「次」を出すため、常に前後1日のデータを保持します。
    */
-  const [currentDateObj, setCurrentDateObj] = useState(today);
-  const [prevDateObj, setPrevDateObj] = useState(() => { const d = new Date(today); d.setDate(d.getDate() - 1); return d; });
-  const [nextDateObj, setNextDateObj] = useState(() => { const d = new Date(today); d.setDate(d.getDate() + 1); return d; });
+  const [currentDateObj, setCurrentDateObj] = useState<Date>(() => {
+    // jumpDateがあればそれを優先する
+    if (jumpDate) {
+      const [y, m, d] = jumpDate.split('-').map(Number);
+      return new Date(y, m - 1, d);
+    }
+    // 前回表示していた日付があればそれを復元
+    if (lastViewedDay) {
+      const [y, m, d] = lastViewedDay.split('-').map(Number);
+      return new Date(y, m - 1, d);
+    }
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  });
+  const [prevDateObj, setPrevDateObj] = useState(() => { const d = new Date(currentDateObj); d.setDate(d.getDate() - 1); return d; });
+  const [nextDateObj, setNextDateObj] = useState(() => { const d = new Date(currentDateObj); d.setDate(d.getDate() + 1); return d; });
   const [selectedEvent, setSelectedEvent] = useState<NativeCalendarEvent | null>(null);
 
   // 月間カレンダー等から日付ジャンプが要求された時の処理
@@ -240,15 +253,18 @@ export default function HomeScreen() {
   const pan = useRef(new Animated.ValueXY()).current; // 指の動き（y座標）を記録
   const lastDateRef = useRef(currentDateObj);
 
-  // 日付が切り替わった際のクリーンアップと隣接日の更新
+  // 現在の日付（第2層）が変更されたら、前後1日分（第1層、第3層）を再計算し、状態を保存
   useEffect(() => {
     if (lastDateRef.current.getTime() !== currentDateObj.getTime()) {
       lastDateRef.current = currentDateObj;
       pan.setValue({ x: 0, y: 0 }); // アニメーション座標をリセット
       setNextDateObj(() => { const d = new Date(currentDateObj); d.setDate(d.getDate() + 1); return d; });
       setPrevDateObj(() => { const d = new Date(currentDateObj); d.setDate(d.getDate() - 1); return d; });
+      
+      // 最後に表示した日を保存
+      setLastViewedDay(toDateStr(currentDateObj));
     }
-  }, [currentDateObj, pan]);
+  }, [currentDateObj, pan, setLastViewedDay]);
 
   /**
    * 紙を破るジェスチャーの制御
@@ -296,7 +312,7 @@ export default function HomeScreen() {
   const getBgUri = (dObj: Date) => {
     if (!isBgEnabled || bgUris.length === 0) return null;
     if (bgMode === 'fixed') return fixedBgUri || bgUris[0];
-    const seed = dObj.getFullYear() * 10000 + (dObj.getMonth() + 1) * 100 + dObj.getDate();
+    const seed = dObj.getFullYear() * 373 + (dObj.getMonth() + 1) * 31 + dObj.getDate();
     return bgUris[seed % bgUris.length];
   };
 

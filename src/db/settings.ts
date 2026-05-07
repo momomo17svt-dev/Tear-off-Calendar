@@ -73,5 +73,7 @@ export async function getAllSettings(): Promise<AppSettings> {
     isDarkMode: map.get('is_dark_mode') === '1',
     selectedCalendarIds,
     defaultCalendarId: (map.get('default_calendar_id') ?? '') || null,
+    lastViewedDay: (map.get('last_viewed_day') ?? '') || null,
+    lastViewedMonth: (map.get('last_viewed_month') ?? '') || null,
   };
 }
