@@ -224,7 +224,6 @@ const DailyCard = React.memo(function DailyCard({
   const year = dObj.getFullYear();
   const month = dObj.getMonth() + 1;
   const date = dObj.getDate();
-  const dateStr = toDateStr(dObj);
   const dayStr = DAY_OF_WEEK[dObj.getDay()];
   const todayFlag = toDateStr(dObj) === toDateStr(today);
   const dayColor = getDayColor(dObj.getDay(), isDarkMode);
@@ -233,7 +232,6 @@ const DailyCard = React.memo(function DailyCard({
   const eventsAreaH = CARD_HEIGHT - BINDING_H - imageH - 70;
   const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
 
-  const isTearOff = cardStyle === 'tear-off';
   const isRing = cardStyle === 'ring';
   const isPolaroid = cardStyle === 'polaroid';
   const isMinimal = cardStyle === 'minimal';

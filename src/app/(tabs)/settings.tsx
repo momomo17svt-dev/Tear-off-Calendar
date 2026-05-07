@@ -76,6 +76,7 @@ export default function SettingsScreen() {
   // コンポーネントマウント時に利用可能なカレンダーを読み込む
   useEffect(() => {
     loadCalendars();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // 現在のモード（ライト/ダーク）に応じた色を取得
@@ -134,7 +135,6 @@ export default function SettingsScreen() {
         
         const filename = `bg_${Date.now()}.jpg`;
         // 画像をアプリのドキュメントディレクトリに保存（永続化）
-        // eslint-disable-next-line import/namespace
         const destUri = FileSystem.documentDirectory + filename;
         await FileSystem.copyAsync({ from: manipResult.uri, to: destUri });
         await addBgUri(destUri);

@@ -185,6 +185,7 @@ export default function ModalScreen() {
         setSelectedCalendarId(cals[0].id);
       }
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // 編集モードの場合、既存のイベント情報を読み込む

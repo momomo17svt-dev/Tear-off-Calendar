@@ -4,6 +4,7 @@
  * 状態管理と、DB（SQLite）への永続化ロジックを統合して提供します。
  */
 import { create } from 'zustand';
+import * as FileSystem from 'expo-file-system/legacy';
 import { getAllSettings, setSetting } from '@/db/settings';
 
 import { AppTheme, CardStyle } from '@/types/settings';
@@ -101,6 +102,12 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   },
 
   removeBgUri: async (uri) => {
+    try {
+      await FileSystem.deleteAsync(uri, { idempotent: true });
+    } catch (e) {
+      console.warn('Failed to delete image file', e);
+    }
+
     const { bgUris, bgUri } = get();
     const newUris = bgUris.filter(u => u !== uri);
     await setSetting('bg_uris', JSON.stringify(newUris));
