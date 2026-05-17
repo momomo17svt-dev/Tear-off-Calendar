@@ -3,6 +3,7 @@
  * 指で紙を破るような物理アニメーションと、その日の予定表示を組み合わせた
  * アプリのメインインターフェースです。
  */
+import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import * as Calendar from 'expo-calendar';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -24,6 +25,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { CARD_HEIGHT, CARD_WIDTH } from '@/constants/cardLayout';
 import { useNativeCalendarStore } from '@/store/nativeCalendarStore';
 import { useNavigationStore } from '@/store/navigationStore';
 import { useSettingsStore } from '@/store/settingsStore';
@@ -32,12 +34,16 @@ import type { AppTheme, CardStyle } from '@/types/settings';
 import { getBackgroundGradient, getThemeColors } from '@/utils/theme';
 
 // ── 画面レイアウト用の定数 ────────────────────────────────────────────────
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
-const CARD_WIDTH = SCREEN_WIDTH * 0.88;        // カードの横幅
-const CARD_HEIGHT = SCREEN_HEIGHT * 0.70;       // カードの縦幅
+// CARD_WIDTH / CARD_HEIGHT はカレンダー画面と共通化（src/constants/cardLayout.ts）。
+// タブ切替時にカード上端位置がジャンプしないよう、両画面で同一値を使う。
+const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 const IMAGE_HEADER_H = CARD_HEIGHT * 0.50;     // 背景画像がある時のヘッダーの高さ
 const NO_IMAGE_HEADER_H = CARD_HEIGHT * 0.45;  // 画像がない時のヘッダーの高さ
 const BINDING_H = 32;                          // カレンダー上部の「綴じ代」部分の高さ
+// 紙めくりアニメで完全に画面外まで飛ばすための距離。
+// 以前はハードコードの 900 だったが、iPad の縦長画面では画面外に出きらず前日カードがチラ見えしていたため、
+// SCREEN_HEIGHT に余裕を足した値に変更した。
+const FLY_OUT_DISTANCE = SCREEN_HEIGHT + 100;
 
 const DAY_OF_WEEK = ['日', '月', '火', '水', '木', '金', '土'];
 const MAX_COLLAPSED_EVENTS = 3;                // 初期状態で表示する予定の最大数（これを超えると「もっと見る」）
@@ -338,6 +344,8 @@ const DailyCard = React.memo(function DailyCard({
 // ── ホーム画面メインコンポーネント ──────────────────────────────────────────
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
+  // 透過タブバーの実高さ（コンテンツが被らないように下端に確保する余白として使う）
+  const tabBarHeight = useBottomTabBarHeight();
   // ストアから設定とカレンダーデータを取得
   const { isBgEnabled, bgUri: fixedBgUri, bgUris, bgMode, appTheme, isDarkMode, lastViewedDay, setLastViewedDay, cardStyle } = useSettingsStore();
   const { getEventsForDate, removeEvent } = useNativeCalendarStore();
@@ -401,9 +409,19 @@ export default function HomeScreen() {
       setPrevDateObj(() => { const d = new Date(currentDateObj); d.setDate(d.getDate() - 1); return d; });
       
       // 最後に表示した日を保存
-      setLastViewedDay(toDateStr(currentDateObj));
+      const dateStr = toDateStr(currentDateObj);
+      setLastViewedDay(dateStr);
+      // 日記タブで参照する「現在選択中の日付」を同期
+      useNavigationStore.getState().setSelectedDate(dateStr);
     }
   }, [currentDateObj, pan, setLastViewedDay]);
+
+  // 初期マウント時にも selectedDate を確実に同期しておく（起動直後の日記タブが今日を正しく見る）
+  useEffect(() => {
+    useNavigationStore.getState().setSelectedDate(toDateStr(currentDateObj));
+    // 初回のみ実行
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   /**
    * 紙を破るジェスチャーの制御
@@ -420,16 +438,16 @@ export default function HomeScreen() {
       onPanResponderRelease: (_, gs) => {
         // 下に 120px 以上スワイプ ➔ 「今日」の紙を破り捨てて「明日」へ
         if (gs.dy > 120) {
-          Animated.timing(pan.y, { toValue: 900, duration: 260, useNativeDriver: true }).start(() => {
+          Animated.timing(pan.y, { toValue: FLY_OUT_DISTANCE, duration: 260, useNativeDriver: true }).start(() => {
             setCurrentDateObj((prev) => { const d = new Date(prev); d.setDate(d.getDate() + 1); return d; });
           });
-        } 
+        }
         // 上に 120px 以上スワイプ ➔ 「昨日」の紙を引っ張って戻す
         else if (gs.dy < -120) {
-          Animated.timing(pan.y, { toValue: -900, duration: 260, useNativeDriver: true }).start(() => {
+          Animated.timing(pan.y, { toValue: -FLY_OUT_DISTANCE, duration: 260, useNativeDriver: true }).start(() => {
             setCurrentDateObj((prev) => { const d = new Date(prev); d.setDate(d.getDate() - 1); return d; });
           });
-        } 
+        }
         // 勢いが足りなければ元の位置にバネで戻る
         else {
           Animated.spring(pan, { toValue: { x: 0, y: 0 }, useNativeDriver: true, bounciness: 10 }).start();
@@ -442,10 +460,10 @@ export default function HomeScreen() {
    * アニメーションの補間（Interpolation）設定
    * スワイプの深さに応じて、カードの傾き（Rotate）や透明度などを変化させます。
    */
-  const currentTranslateY = pan.y.interpolate({ inputRange: [0, 900], outputRange: [0, 900], extrapolate: 'clamp' });
-  const currentRotateZ = pan.y.interpolate({ inputRange: [0, 900], outputRange: ['0deg', '14deg'], extrapolate: 'clamp' });
-  const prevTranslateY = pan.y.interpolate({ inputRange: [-900, 0], outputRange: [0, 900], extrapolate: 'clamp' });
-  const prevRotateZ = pan.y.interpolate({ inputRange: [-900, 0], outputRange: ['0deg', '-14deg'], extrapolate: 'clamp' });
+  const currentTranslateY = pan.y.interpolate({ inputRange: [0, FLY_OUT_DISTANCE], outputRange: [0, FLY_OUT_DISTANCE], extrapolate: 'clamp' });
+  const currentRotateZ = pan.y.interpolate({ inputRange: [0, FLY_OUT_DISTANCE], outputRange: ['0deg', '14deg'], extrapolate: 'clamp' });
+  const prevTranslateY = pan.y.interpolate({ inputRange: [-FLY_OUT_DISTANCE, 0], outputRange: [0, FLY_OUT_DISTANCE], extrapolate: 'clamp' });
+  const prevRotateZ = pan.y.interpolate({ inputRange: [-FLY_OUT_DISTANCE, 0], outputRange: ['0deg', '-14deg'], extrapolate: 'clamp' });
 
   // 背景画像のURIを取得（固定モード or 日替わりランダムモード）
   const getBgUri = (dObj: Date) => {
@@ -513,7 +531,7 @@ export default function HomeScreen() {
    */
   return (
     <LinearGradient colors={bgGrad} style={styles.container} {...panResponder.panHandlers}>
-      <View style={[styles.inner, { paddingTop: insets.top + 8, paddingBottom: insets.bottom + 88 }]}>
+      <View style={[styles.inner, { paddingTop: insets.top + 8 }]}>
 
         {/* 第1層（最背面）：明日（またはスワイプで出てくる次）のカード */}
         <Animated.View style={[styles.card, styles.absolute, styles.shadow]}>
@@ -591,7 +609,14 @@ export default function HomeScreen() {
           isDarkMode={isDarkMode}
         />
       )}
-      <View style={{ position: 'absolute', bottom: insets.bottom + 60, width: '100%', alignItems: 'center' }} pointerEvents="box-none">
+
+      {/*
+        広告領域：レイアウトに組み込んでタブバー直上に配置する。
+        - inner (flex: 1) は広告の高さを除いた残り領域を占めるので、カードが広告に被らない。
+        - 課金で広告が非表示（AdBanner が null 返却）の場合、この View は高さ 0 になり、自然に
+          コンテンツ領域が広がる。
+      */}
+      <View style={[styles.adWrap, { paddingBottom: tabBarHeight }]} pointerEvents="box-none">
         <AdBanner />
       </View>
     </LinearGradient>
@@ -602,6 +627,9 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   inner: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+
+  // 広告領域のラッパー。flex: 0 で広告の自然な高さを取り、paddingBottom でタブバー分を確保する。
+  adWrap: { width: '100%', alignItems: 'center' },
 
   card: {
     width: CARD_WIDTH,

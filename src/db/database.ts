@@ -36,6 +36,20 @@ export async function initDatabase(): Promise<void> {
       key TEXT PRIMARY KEY,
       value TEXT
     );
+
+    -- 日記エントリ（写真添付・タグ付き）。1日複数件を許容する履歴型テーブル。
+    CREATE TABLE IF NOT EXISTS diaries (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      date       TEXT    NOT NULL,
+      title      TEXT    NOT NULL DEFAULT '',
+      content    TEXT    NOT NULL DEFAULT '',
+      tags       TEXT    NOT NULL DEFAULT '[]',
+      image_uris TEXT    NOT NULL DEFAULT '[]',
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_diaries_date ON diaries(date);
+    CREATE INDEX IF NOT EXISTS idx_diaries_date_created ON diaries(date DESC, created_at DESC);
   `);
 
   // 初回起動時に必要なデフォルト設定値
@@ -44,6 +58,8 @@ export async function initDatabase(): Promise<void> {
     ['bg_uri', ''],
     ['selected_calendar_ids', '[]'],
     ['default_calendar_id', ''],
+    // 課金未購入をデフォルトとする（広告表示）。'1' になったら広告非表示。
+    ['is_premium', '0'],
   ];
 
   // 各デフォルト値を投入。INSERT OR IGNORE を使うことで、
@@ -61,6 +77,7 @@ export async function resetDatabase(): Promise<void> {
   const db = await getDb();
   await db.execAsync(`
     DROP TABLE IF EXISTS events;
+    DROP TABLE IF EXISTS diaries;
     DROP TABLE IF EXISTS settings;
   `);
   await initDatabase();

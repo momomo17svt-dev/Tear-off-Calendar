@@ -2,11 +2,25 @@ import React from 'react';
 import { Platform, View, StyleSheet, Text } from 'react-native';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 
+import { useSettingsStore } from '@/store/settingsStore';
+
 const isExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
 
+/**
+ * 画面下部に表示するバナー広告。
+ * - 課金で広告非表示プランを購入済み（isPremium: true）の場合は何も描画しない（高さ 0）
+ * - Expo Go 環境ではネイティブモジュールが読み込めないためプレースホルダーを表示
+ * - それ以外は AdMob の ANCHORED_ADAPTIVE_BANNER を表示
+ *
+ * 呼び出し側は AdBanner をレイアウトに組み込む前提で、高さの動的変動を許容している。
+ */
 export function AdBanner() {
+  // 課金済みなら広告は出さない。Zustand のセレクタで購読することで切替に追従。
+  const isPremium = useSettingsStore((s) => s.isPremium);
+  if (isPremium) return null;
+
   if (isExpoGo) {
-    // Expo Go環境ではネイティブモジュールがないため、エラーを回避してプレースホルダーを表示します
+    // Expo Go 環境ではネイティブモジュールがないため、エラー回避としてプレースホルダーを表示
     return (
       <View style={[styles.container, styles.placeholder]}>
         <Text style={styles.placeholderText}>広告エリア（Expo Goでは非表示）</Text>

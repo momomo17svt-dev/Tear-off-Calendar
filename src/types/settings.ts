@@ -12,7 +12,8 @@ export type SettingKey =
   | 'is_dark_mode'           // ダークモード強制設定
   | 'last_viewed_day'        // ホーム画面で最後に表示した日付
   | 'last_viewed_month'      // カレンダー画面で最後に表示した年月
-  | 'card_style';            // カレンダーカードのデザインスタイル
+  | 'card_style'             // カレンダーカードのデザインスタイル
+  | 'is_premium';            // 課金で広告非表示プランを購入済みか
 
 /**
  * SQLite データベースに保存される設定データの1行分
@@ -59,4 +60,6 @@ export interface AppSettings {
   lastViewedMonth: string | null;
   /** カレンダーカードのスタイル */
   cardStyle: CardStyle;
+  /** 課金で広告非表示プランを購入済みか（true なら広告を非表示） */
+  isPremium: boolean;
 }
