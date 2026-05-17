@@ -8,6 +8,7 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { AdBanner } from '@/components/AdBanner';
 import {
   ActionSheetIOS,
   Alert,
@@ -590,6 +591,9 @@ export default function HomeScreen() {
           isDarkMode={isDarkMode}
         />
       )}
+      <View style={{ position: 'absolute', bottom: insets.bottom + 60, width: '100%', alignItems: 'center' }} pointerEvents="box-none">
+        <AdBanner />
+      </View>
     </LinearGradient>
   );
 }

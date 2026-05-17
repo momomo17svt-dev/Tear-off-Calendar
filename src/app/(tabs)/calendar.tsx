@@ -14,6 +14,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 
+import { AdBanner } from '@/components/AdBanner';
+
 import { useNativeCalendarStore } from '@/store/nativeCalendarStore';
 import { useNavigationStore } from '@/store/navigationStore';
 import { useSettingsStore } from '@/store/settingsStore';
@@ -498,6 +500,9 @@ export default function CalendarScreen() {
           <Text style={styles.todayReturnText}>今月に戻る</Text>
         </TouchableOpacity>
       )}
+      <View style={{ position: 'absolute', bottom: insets.bottom + 60, width: '100%', alignItems: 'center' }} pointerEvents="box-none">
+        <AdBanner />
+      </View>
     </LinearGradient>
   );
 }

@@ -4,6 +4,9 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import 'react-native-reanimated';
+import Constants, { ExecutionEnvironment } from 'expo-constants';
+
+const isExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
 
 import { initDatabase } from '@/db/database';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -39,6 +42,16 @@ export default function RootLayout() {
          * 画面がマウントされる前に必要なリソースを順番に準備します。
          */
         
+        // 0. 広告トラッキングの許可リクエストと広告SDKの初期化
+        if (!isExpoGo) {
+          const { requestTrackingPermissionsAsync } = require('expo-tracking-transparency');
+          const mobileAds = require('react-native-google-mobile-ads').default;
+          
+          const { status } = await requestTrackingPermissionsAsync();
+          // トラッキングの許可・拒否に関わらずSDKは初期化する必要があります
+          await mobileAds().initialize();
+        }
+
         // 1. SQLiteデータベースの初期化（テーブル作成とシードデータの投入）
         await initDatabase();
         
