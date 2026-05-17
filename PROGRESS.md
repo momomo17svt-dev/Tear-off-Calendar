@@ -68,3 +68,16 @@
 - [x] 背景画像の削除時のストレージリーク解消
 - [x] Lint警告と未使用変数のクリーンアップ
 - [x] 【カレンダータブ】予定が多い場合のカレンダー見切れ問題の解消
+
+## フェーズ 9: 日記機能と UI/レイアウト改善
+- [x] 【日記タブ】タブバーに 5 つ目のタブを追加（追加と設定の間、`book.fill` アイコン）
+- [x] 【日記タブ】`diaries` テーブル（id/date/title/content/tags/image_uris/timestamps）の追加と DAL 実装
+- [x] 【日記タブ】Zustand `diaryStore` でメモリキャッシュ（`diariesByDate`）と CRUD/検索を提供
+- [x] 【日記タブ】複数画像添付（`documentDirectory/diaries/` 配下にローカル保存、URI のみ DB 保持）
+- [x] 【日記タブ】タイトル / タグでの LIKE 検索（メタ文字エスケープ済み）
+- [x] 【日記タブ】ホーム画面の選択日付と連動（`navigationStore.selectedDate` を追加）
+- [x] 【日記タブ】日付前後ボタン・日付ピッカー・「今日へ」リンクで日付変更
+- [x] 【広告】AdBanner を絶対配置 → 画面下部のレイアウトに組み込み、コンテンツとの被りを解消
+- [x] 【広告】`settings.is_premium` キーを追加し、購入済みなら AdBanner が `null` を返す
+- [x] 【ホーム/カレンダー】iPad で前日/前月カードがチラ見えする問題を解消（`FLY_OUT_DISTANCE = SCREEN_HEIGHT + 100`）
+- [x] 【ホーム/カレンダー】カード寸法を `src/constants/cardLayout.ts` に共通化し、タブ切替時の上端ジャンプを解消

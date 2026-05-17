@@ -21,6 +21,8 @@ interface SettingsState {
   lastViewedDay: string | null;
   lastViewedMonth: string | null;
   cardStyle: CardStyle;
+  /** 課金で広告非表示プランを購入済みか */
+  isPremium: boolean;
   isLoading: boolean;
   loadSettings: () => Promise<void>;
   setBgEnabled: (enabled: boolean) => Promise<void>;
@@ -35,6 +37,8 @@ interface SettingsState {
   setLastViewedDay: (date: string) => Promise<void>;
   setLastViewedMonth: (date: string) => Promise<void>;
   setCardStyle: (style: CardStyle) => Promise<void>;
+  /** 課金状態を更新する（StoreKit/Billing 連携時に呼ぶ） */
+  setPremium: (enabled: boolean) => Promise<void>;
 }
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({
@@ -50,6 +54,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   lastViewedDay: null,
   lastViewedMonth: null,
   cardStyle: 'tear-off',      // デフォルトのカードデザイン
+  isPremium: false,           // 課金未購入をデフォルト
   isLoading: false,           // 設定読み込み中フラグ
 
   /**
@@ -72,6 +77,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       lastViewedDay: s.lastViewedDay,
       lastViewedMonth: s.lastViewedMonth,
       cardStyle: s.cardStyle,
+      isPremium: s.isPremium,
       isLoading: false,
     });
   },
@@ -159,5 +165,10 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   setCardStyle: async (style) => {
     await setSetting('card_style', style);
     set({ cardStyle: style });
+  },
+
+  setPremium: async (enabled) => {
+    await setSetting('is_premium', enabled ? '1' : '0');
+    set({ isPremium: enabled });
   },
 }));

@@ -1,50 +1,58 @@
-# Welcome to your Expo app 👋
+# 日めくりカレンダーアプリ (Tear-off Calendar)
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+写真を背景にした日めくりカレンダーと、端末ネイティブカレンダーの予定管理、写真付きの日記機能を一体化したモバイルアプリ。React Native (Expo SDK 54) で iOS / Android に対応。
 
-## Get started
+## 主な機能
 
-1. Install dependencies
+- **日めくりホーム画面** — 紙をめくるアニメーションで日付を移動。背景画像は固定 / 日替わりランダムから選択可能。
+- **月間カレンダー** — 月ごとのグリッド表示。六曜表示、日付タップで該当日のホームへジャンプ。
+- **予定管理** — 端末ネイティブカレンダー（iOS Calendar / Google Calendar）に直接読み書き。
+- **日記機能** — 1 日複数件、タイトル / 本文 / タグ / 画像（最大 5 枚）を保存。タイトル・タグ検索対応。ホーム画面の選択日付と連動。
+- **テーマ / 背景** — 和紙・桜・抹茶など複数の和風テーマと、ダークモードに対応。
+- **広告 / 課金** — 無料時のみ AdMob バナーを表示。`is_premium` フラグで非表示に切替可能。
 
-   ```bash
-   npm install
-   ```
+## 開発環境
 
-2. Start the app
+| 項目 | 内容 |
+| :--- | :--- |
+| フレームワーク | React Native (Expo SDK 54) |
+| 言語 | TypeScript |
+| 状態管理 | Zustand |
+| データ永続化 | Expo SQLite + expo-file-system |
+| ルーティング | Expo Router (File-based) |
+| CI/CD | GitHub Actions + EAS Build |
 
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+## セットアップ
 
 ```bash
-npm run reset-project
+npm install
+npx expo start --tunnel
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+Windows + iPhone での動作確認はトンネルモードを推奨（LAN モードはファイアウォール / Wi-Fi 帯域問題で繋がりにくい）。
 
-## Learn more
+AdMob のネイティブモジュールは Expo Go では動かないため、`npm run ios` / `npm run android` で Dev Build を使うのが確実。
 
-To learn more about developing your project with Expo, look at the following resources:
+## ドキュメント
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+- 要件定義: [requirements.md](./requirements.md)
+- 進捗管理: [PROGRESS.md](./PROGRESS.md)
+- AIアシスタント向け行動指針: [claude.md](./claude.md)
 
-## Join the community
+## ディレクトリ構成（抜粋）
 
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+```
+src/
+├─ app/                # Expo Router の画面
+│  ├─ (tabs)/          # タブ画面（ホーム / カレンダー / 追加 / 日記 / 設定）
+│  ├─ modal.tsx        # 予定追加・編集モーダル
+│  └─ modal-diary.tsx  # 日記追加・編集モーダル
+├─ components/         # 共通 UI コンポーネント
+├─ constants/
+│  ├─ cardLayout.ts    # ホーム/カレンダー共通のカード寸法
+│  └─ theme.ts
+├─ db/                 # SQLite DAL（settings / diaries）
+├─ store/              # Zustand ストア
+├─ types/              # 型定義
+└─ utils/              # ネイティブカレンダー操作、日記画像、テーマ など
+```

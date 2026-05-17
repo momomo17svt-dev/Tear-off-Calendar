@@ -1,3 +1,4 @@
+import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { router } from 'expo-router';
 import React, { useCallback, useState, useRef, useEffect } from 'react';
 import {
@@ -14,6 +15,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 
+import { AdBanner } from '@/components/AdBanner';
+import { CARD_HEIGHT, CARD_WIDTH } from '@/constants/cardLayout';
+
 import { useNativeCalendarStore } from '@/store/nativeCalendarStore';
 import { useNavigationStore } from '@/store/navigationStore';
 import { useSettingsStore } from '@/store/settingsStore';
@@ -25,10 +29,13 @@ import { getThemeColors, getBackgroundGradient } from '@/utils/theme';
  * 予定の有無を一覧で確認でき、日付を選択するとその日の詳細（日めくり画面）へ移動します。
  */
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
-const CARD_WIDTH = SCREEN_WIDTH * 0.90;
-const CARD_HEIGHT = SCREEN_HEIGHT * 0.74;
+// CARD_WIDTH / CARD_HEIGHT はホーム画面と共通化（src/constants/cardLayout.ts）。
+// タブ切替時にカード上端位置がジャンプしないよう、両画面で同一値を使う。
+const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 const BINDING_H = 32;
+// 月めくりアニメで完全に画面外まで飛ばすための距離。
+// iPad の縦長画面で 900 では画面外に出きらず、前月カードがチラ見えしていた問題への対応。
+const FLY_OUT_DISTANCE = SCREEN_HEIGHT + 100;
 // 1セルあたりの幅（カード幅を7分割）
 const CELL_W = Math.floor(CARD_WIDTH / 7);
 
@@ -325,6 +332,8 @@ const MonthlyCard = React.memo(function MonthlyCard({
 
 export default function CalendarScreen() {
   const insets = useSafeAreaInsets();
+  // 透過タブバーの実高さ。広告領域の paddingBottom に使う。
+  const tabBarHeight = useBottomTabBarHeight();
   const { eventsByDate } = useNativeCalendarStore();
   const { setJumpDate } = useNavigationStore();
   const { isDarkMode, isBgEnabled, bgMode, bgUri: fixedBgUri, bgUris, appTheme, lastViewedMonth, setLastViewedMonth, cardStyle } = useSettingsStore();
@@ -380,16 +389,16 @@ export default function CalendarScreen() {
       onPanResponderRelease: (_, gs) => {
         // 下に 120px 以上スワイプ ➔ 「今の月」を破り捨てて「来月」へ
         if (gs.dy > 120) {
-          Animated.timing(pan.y, { toValue: 900, duration: 260, useNativeDriver: true }).start(() => {
+          Animated.timing(pan.y, { toValue: FLY_OUT_DISTANCE, duration: 260, useNativeDriver: true }).start(() => {
             setCurrentMonthObj(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
           });
-        } 
+        }
         // 上に 120px 以上スワイプ ➔ 「先月」を引っ張って戻す
         else if (gs.dy < -120) {
-          Animated.timing(pan.y, { toValue: -900, duration: 260, useNativeDriver: true }).start(() => {
+          Animated.timing(pan.y, { toValue: -FLY_OUT_DISTANCE, duration: 260, useNativeDriver: true }).start(() => {
             setCurrentMonthObj(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
           });
-        } 
+        }
         // 勢いが足りなければ元の位置にバネで戻る
         else {
           Animated.spring(pan, { toValue: { x: 0, y: 0 }, useNativeDriver: true, bounciness: 10 }).start();
@@ -399,20 +408,20 @@ export default function CalendarScreen() {
   ).current;
 
   // アニメーションの補間設定
-  const currentTranslateY = pan.y.interpolate({ inputRange: [0, 900], outputRange: [0, 900], extrapolate: 'clamp' });
-  const currentRotateZ = pan.y.interpolate({ inputRange: [0, 900], outputRange: ['0deg', '8deg'], extrapolate: 'clamp' });
-  const prevTranslateY = pan.y.interpolate({ inputRange: [-900, 0], outputRange: [0, 900], extrapolate: 'clamp' });
-  const prevRotateZ = pan.y.interpolate({ inputRange: [-900, 0], outputRange: ['0deg', '-8deg'], extrapolate: 'clamp' });
+  const currentTranslateY = pan.y.interpolate({ inputRange: [0, FLY_OUT_DISTANCE], outputRange: [0, FLY_OUT_DISTANCE], extrapolate: 'clamp' });
+  const currentRotateZ = pan.y.interpolate({ inputRange: [0, FLY_OUT_DISTANCE], outputRange: ['0deg', '8deg'], extrapolate: 'clamp' });
+  const prevTranslateY = pan.y.interpolate({ inputRange: [-FLY_OUT_DISTANCE, 0], outputRange: [0, FLY_OUT_DISTANCE], extrapolate: 'clamp' });
+  const prevRotateZ = pan.y.interpolate({ inputRange: [-FLY_OUT_DISTANCE, 0], outputRange: ['0deg', '-8deg'], extrapolate: 'clamp' });
 
   // ボタン操作による月移動
   const animateToNextMonth = () => {
-    Animated.timing(pan.y, { toValue: 900, duration: 260, useNativeDriver: true }).start(() => {
+    Animated.timing(pan.y, { toValue: FLY_OUT_DISTANCE, duration: 260, useNativeDriver: true }).start(() => {
       setCurrentMonthObj(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
     });
   };
 
   const animateToPrevMonth = () => {
-    Animated.timing(pan.y, { toValue: -900, duration: 260, useNativeDriver: true }).start(() => {
+    Animated.timing(pan.y, { toValue: -FLY_OUT_DISTANCE, duration: 260, useNativeDriver: true }).start(() => {
       setCurrentMonthObj(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
     });
   };
@@ -428,7 +437,7 @@ export default function CalendarScreen() {
 
   return (
     <LinearGradient colors={bgGrad} style={styles.container} {...panResponder.panHandlers}>
-      <View style={[styles.inner, { paddingTop: insets.top + 8, paddingBottom: insets.bottom + 88 }]}>
+      <View style={[styles.inner, { paddingTop: insets.top + 8 }]}>
         {/* 第1層（最背面）：次月 */}
         <Animated.View style={[styles.card, styles.absolute]}>
           <MonthlyCard
@@ -498,6 +507,16 @@ export default function CalendarScreen() {
           <Text style={styles.todayReturnText}>今月に戻る</Text>
         </TouchableOpacity>
       )}
+
+      {/*
+        広告領域：レイアウトに組み込んでタブバー直上に配置する。
+        - inner (flex: 1) はこの View 分の高さを除いた残り領域を占めるため、月カレンダーが広告に被らない。
+        - 課金で広告が非表示（AdBanner が null 返却）の場合、この View は高さ 0 になり、自然に
+          カレンダー領域が広がる。
+      */}
+      <View style={[styles.adWrap, { paddingBottom: tabBarHeight }]} pointerEvents="box-none">
+        <AdBanner />
+      </View>
     </LinearGradient>
   );
 }
@@ -505,7 +524,9 @@ export default function CalendarScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   inner: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  card: { 
+  // 広告領域のラッパー。flex: 0 で広告の自然な高さを取り、paddingBottom でタブバー分を確保する。
+  adWrap: { width: '100%', alignItems: 'center' },
+  card: {
     width: CARD_WIDTH, 
     height: CARD_HEIGHT, 
     backgroundColor: '#fff',

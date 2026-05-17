@@ -105,7 +105,15 @@ export default function TabLayout() {
           },
         }}
       />
-      {/* 4. 設定画面 */}
+      {/* 4. 日記タブ */}
+      <Tabs.Screen
+        name="diary"
+        options={{
+          title: '日記',
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="book.fill" color={color} />,
+        }}
+      />
+      {/* 5. 設定画面 */}
       <Tabs.Screen
         name="settings"
         options={{

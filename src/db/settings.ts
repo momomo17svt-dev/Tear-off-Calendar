@@ -76,5 +76,6 @@ export async function getAllSettings(): Promise<AppSettings> {
     lastViewedDay: (map.get('last_viewed_day') ?? '') || null,
     lastViewedMonth: (map.get('last_viewed_month') ?? '') || null,
     cardStyle: (map.get('card_style') as CardStyle) || 'tear-off',
+    isPremium: map.get('is_premium') === '1',
   };
 }

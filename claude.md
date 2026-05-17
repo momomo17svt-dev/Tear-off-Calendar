@@ -32,7 +32,15 @@
 
 ## 4. プロジェクト特有の技術的注意点
 * 画像はDB（SQLite）にバイナリ保存せず、`expo-file-system` でローカルに保存し、そのURI文字列のみをDBに保存してください。
+  * 背景画像: `documentDirectory` 直下に `bg_*.jpg`
+  * 日記添付画像: `documentDirectory/diaries/` 配下に `diary_<ts>_<rand>.jpg`（混在防止のためサブディレクトリで分離）
 * UIは「写真が主役」です。Z-IndexやOpacity、`expo-blur` などのBlurViewを活用し、要素が背景を隠しすぎないよう注意してください。
+* **ホーム/カレンダーのカード寸法は `src/constants/cardLayout.ts` で共通化済み**。両画面で同一値を使うこと（タブ切替時の上端ジャンプ防止）。
+* **紙めくり/月めくりの待機位置**は `FLY_OUT_DISTANCE = SCREEN_HEIGHT + 100` を使う。`900` 等のハードコードは iPad で画面外まで出きらず前後カードがチラ見えするので NG。
+* **AdBanner はレイアウトに組み込む**。`position: 'absolute'` でオーバーレイすると iPhone でコンテンツと被るので、画面下部に flex で配置し、その下に `useBottomTabBarHeight()` 分の `paddingBottom` を確保すること。
+* **広告の出し分け**は `useSettingsStore.isPremium` を購読。`true` のとき AdBanner は `null` を返し、レイアウトが自然に詰まる。StoreKit/Billing 連携時は購入成立後に `setPremium(true)` を呼ぶ。
+* **日記タブとホームの日付連動**は `useNavigationStore.selectedDate`（揮発）。ホームのスワイプで更新され、日記タブで購読。日記タブから日付変更すると `setJumpDate()` を併用してホームを追従させる。`lastViewedDay`（settingsStore、永続化）とは関心が違うので混同しないこと。
+* **Expo Router の typed routes** は dev サーバー起動時にしかルート型を再生成しないため、新規ルートを追加した直後の `tsc --noEmit` では型エラーが出ることがある。`router.push({ pathname: '/<new-route>', ... } as unknown as Href)` でキャストするか、`npx expo start` を一度走らせて型を再生成する。
 
 ## 5. 開発環境のトラブルシュート
 

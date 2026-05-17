@@ -4,9 +4,13 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import 'react-native-reanimated';
+import Constants, { ExecutionEnvironment } from 'expo-constants';
+
+const isExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
 
 import { initDatabase } from '@/db/database';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useDiaryStore } from '@/store/diaryStore';
 import { useNativeCalendarStore } from '@/store/nativeCalendarStore';
 import { useSettingsStore } from '@/store/settingsStore';
 
@@ -39,16 +43,27 @@ export default function RootLayout() {
          * 画面がマウントされる前に必要なリソースを順番に準備します。
          */
         
+        // 0. 広告トラッキングの許可リクエストと広告SDKの初期化
+        if (!isExpoGo) {
+          const { requestTrackingPermissionsAsync } = require('expo-tracking-transparency');
+          const mobileAds = require('react-native-google-mobile-ads').default;
+          
+          const { status } = await requestTrackingPermissionsAsync();
+          // トラッキングの許可・拒否に関わらずSDKは初期化する必要があります
+          await mobileAds().initialize();
+        }
+
         // 1. SQLiteデータベースの初期化（テーブル作成とシードデータの投入）
         await initDatabase();
         
         // 2. ユーザー設定の読み込み（DBからZustandストアの状態を復元）
         await useSettingsStore.getState().loadSettings();
         
-        // 3. カレンダー関連の初期化を並列実行して高速化
+        // 3. カレンダー関連と日記のフェッチを並列実行して高速化
         await Promise.all([
           useNativeCalendarStore.getState().loadCalendars(), // 端末内のカレンダー一覧を取得
           useNativeCalendarStore.getState().fetchAll(),      // 直近の予定データを一括フェッチ
+          useDiaryStore.getState().fetchAll(),               // 日記をメモリキャッシュへ読み込み
         ]);
         
         // 全ての準備が整ったことを通知
@@ -92,6 +107,9 @@ export default function RootLayout() {
 
         {/* modal: 予定の追加や詳細表示など、特定の操作時に下から重なって表示される一時的な画面 */}
         <Stack.Screen name="modal" options={{ presentation: 'modal', headerShown: false }} />
+
+        {/* modal-diary: 日記の新規作成・編集モーダル */}
+        <Stack.Screen name="modal-diary" options={{ presentation: 'modal', headerShown: false }} />
       </Stack>
       <StatusBar style="auto" />
     </ThemeProvider>

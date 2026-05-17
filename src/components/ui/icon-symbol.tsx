@@ -19,6 +19,11 @@ const MAPPING = {
   'plus.circle.fill': 'add-circle',
   'gearshape.fill': 'settings',
   'calendar': 'calendar-month',
+  'book.fill': 'menu-book',
+  'magnifyingglass': 'search',
+  'xmark.circle.fill': 'cancel',
+  'photo': 'photo',
+  'trash': 'delete',
 } as IconMapping;
 
 type IconMapping = Record<SymbolViewProps['name'], ComponentProps<typeof MaterialIcons>['name']>;
