@@ -9,6 +9,7 @@ import Constants, { ExecutionEnvironment } from 'expo-constants';
 const isExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
 
 import { initDatabase } from '@/db/database';
+import { migrateTagsFromDiariesIfNeeded } from '@/db/tags';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useDiaryStore } from '@/store/diaryStore';
 import { useNativeCalendarStore } from '@/store/nativeCalendarStore';
@@ -55,7 +56,10 @@ export default function RootLayout() {
 
         // 1. SQLiteデータベースの初期化（テーブル作成とシードデータの投入）
         await initDatabase();
-        
+
+        // 1.5. 初回のみ、過去の日記から使われていたタグをタグマスターに自動取り込み
+        await migrateTagsFromDiariesIfNeeded();
+
         // 2. ユーザー設定の読み込み（DBからZustandストアの状態を復元）
         await useSettingsStore.getState().loadSettings();
         

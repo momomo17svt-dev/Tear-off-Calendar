@@ -6,6 +6,7 @@
  * - FAB: 新規作成（modal-diary を選択日付付きで開く）
  */
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useFocusEffect, type Href } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -13,6 +14,7 @@ import {
   FlatList,
   Modal,
   Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -27,6 +29,11 @@ import { useDiaryStore } from '@/store/diaryStore';
 import { useNavigationStore } from '@/store/navigationStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import type { Diary } from '@/types/diary';
+import {
+  DiaryPhotoSuggestion,
+  ensurePhotoPermission,
+  getPhotosForDate,
+} from '@/utils/diaryImages';
 import { toDateString } from '@/utils/nativeCalendar';
 import { getBackgroundGradient, getThemeColors } from '@/utils/theme';
 
@@ -103,6 +110,66 @@ export default function DiaryScreen() {
   const handleClearSearch = useCallback(() => {
     clearSearch();
   }, [clearSearch]);
+
+  // ── 「この日の写真」サジェスト ──────────────────────────────
+  const [suggestions, setSuggestions] = useState<DiaryPhotoSuggestion[]>([]);
+  const [suggestionsState, setSuggestionsState] = useState<
+    'idle' | 'loading' | 'denied' | 'granted' | 'limited' | 'empty'
+  >('idle');
+
+  /**
+   * 選択日の写真を MediaLibrary から取得する。日付変更/フォーカス復帰時に呼ばれる。
+   * 検索モード中はリスト表示と関心が違うので非表示にしたいが、エリア自体は残す方針。
+   */
+  const loadSuggestions = useCallback(async () => {
+    setSuggestionsState('loading');
+    const perm = await ensurePhotoPermission();
+    if (!perm.granted) {
+      setSuggestions([]);
+      setSuggestionsState('denied');
+      return;
+    }
+    const photos = await getPhotosForDate(selectedDate);
+    setSuggestions(photos);
+    if (photos.length === 0) {
+      setSuggestionsState(perm.accessPrivileges === 'limited' ? 'limited' : 'empty');
+    } else {
+      setSuggestionsState(perm.accessPrivileges === 'limited' ? 'limited' : 'granted');
+    }
+  }, [selectedDate]);
+
+  useEffect(() => {
+    loadSuggestions();
+  }, [loadSuggestions]);
+
+  // 設定画面で権限を変更してきた場合に追従させるため、フォーカス復帰時にも再取得
+  useFocusEffect(
+    useCallback(() => {
+      loadSuggestions();
+    }, [loadSuggestions])
+  );
+
+  /**
+   * サジェスト写真をタップ → 新規日記モーダルをその写真付きで開く
+   */
+  const handleSuggestionPress = useCallback(
+    (asset: DiaryPhotoSuggestion) => {
+      router.push({
+        pathname: '/modal-diary',
+        params: {
+          dateStr: selectedDate,
+          prefillAssetId: asset.id,
+          prefillAssetUri: asset.uri,
+        },
+      } as unknown as Href);
+    },
+    [selectedDate]
+  );
+
+  /** 設定タブへの誘導（権限なし時のスタブから） */
+  const handleGoToSettings = useCallback(() => {
+    router.push('/(tabs)/settings' as unknown as Href);
+  }, []);
 
   // ── 日付変更ロジック ──────────────────────────────────────────
   const setSelectedDate = useNavigationStore((s) => s.setSelectedDate);
@@ -252,6 +319,7 @@ export default function DiaryScreen() {
 
         {/* ── リスト本体 ── */}
         <FlatList
+          style={styles.list}
           data={listData}
           keyExtractor={(item) => String(item.id)}
           renderItem={({ item }) => (
@@ -262,10 +330,7 @@ export default function DiaryScreen() {
               onPress={handleCardPress}
             />
           )}
-          contentContainerStyle={[
-            styles.listContent,
-            { paddingBottom: insets.bottom + 96 },
-          ]}
+          contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
             <View style={styles.empty}>
@@ -285,6 +350,70 @@ export default function DiaryScreen() {
             </View>
           }
         />
+
+        {/* ── 下部：この日の写真エリア（検索モード時は非表示） ── */}
+        {!isSearchMode && (
+          <View
+            style={[
+              styles.photoArea,
+              {
+                backgroundColor: themeColors.cardBg,
+                borderColor: themeColors.border,
+                paddingBottom: insets.bottom + 60, // タブバー（≒60）+ セーフエリア
+              },
+            ]}
+          >
+            <Text style={[styles.photoAreaLabel, { color: themeColors.textSub }]}>
+              📷 この日の写真
+              {(suggestionsState === 'granted' || suggestionsState === 'limited') &&
+                ` (${suggestions.length})`}
+            </Text>
+
+            {suggestionsState === 'loading' ? (
+              <Text style={[styles.photoAreaHint, { color: themeColors.textSub }]}>読み込み中...</Text>
+            ) : suggestionsState === 'denied' ? (
+              <TouchableOpacity onPress={handleGoToSettings} activeOpacity={0.7}>
+                <Text style={[styles.photoAreaHint, { color: themeColors.textSub }]}>
+                  写真へのアクセスが許可されていません。
+                  <Text style={styles.photoAreaLink}>設定タブで許可する</Text>
+                </Text>
+              </TouchableOpacity>
+            ) : suggestionsState === 'empty' ? (
+              <Text style={[styles.photoAreaHint, { color: themeColors.textSub }]}>
+                この日に撮影された写真はありません
+              </Text>
+            ) : suggestions.length === 0 && suggestionsState === 'limited' ? (
+              <TouchableOpacity onPress={handleGoToSettings} activeOpacity={0.7}>
+                <Text style={[styles.photoAreaHint, { color: themeColors.textSub }]}>
+                  この日の写真は許可範囲に含まれていません。
+                  <Text style={styles.photoAreaLink}>設定タブで変更する</Text>
+                </Text>
+              </TouchableOpacity>
+            ) : (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.photoRow}
+              >
+                {suggestions.map((asset) => (
+                  <TouchableOpacity
+                    key={asset.id}
+                    onPress={() => handleSuggestionPress(asset)}
+                    activeOpacity={0.8}
+                  >
+                    <Image
+                      source={{ uri: asset.uri }}
+                      style={styles.photoThumb}
+                      contentFit="cover"
+                      cachePolicy="memory-disk"
+                      transition={0}
+                    />
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            )}
+          </View>
+        )}
       </View>
     </View>
   );
@@ -463,7 +592,8 @@ const styles = StyleSheet.create({
     paddingVertical: Platform.OS === 'ios' ? 0 : 8,
   },
 
-  listContent: { paddingTop: 4 },
+  list: { flex: 1 },
+  listContent: { paddingTop: 4, paddingBottom: 12 },
 
   empty: {
     alignItems: 'center',
@@ -473,4 +603,31 @@ const styles = StyleSheet.create({
   emptyIcon: { fontSize: 48, marginBottom: 12 },
   emptyTitle: { fontSize: 16, fontWeight: '700', marginBottom: 6, textAlign: 'center' },
   emptyHint: { fontSize: 13, textAlign: 'center' },
+
+  // ── 下部の「この日の写真」エリア ──
+  photoArea: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingTop: 10,
+    paddingHorizontal: 12,
+    marginHorizontal: -16, // 親の paddingHorizontal を相殺して画面幅いっぱい
+  },
+  photoAreaLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+    marginBottom: 8,
+    paddingHorizontal: 4,
+  },
+  photoAreaHint: {
+    fontSize: 13,
+    paddingVertical: 12,
+    paddingHorizontal: 4,
+  },
+  photoAreaLink: {
+    color: '#0a7ea4',
+    fontWeight: '700',
+  },
+  photoRow: { gap: 8, paddingHorizontal: 4 },
+  photoThumb: { width: 64, height: 64, borderRadius: 10 },
 });
