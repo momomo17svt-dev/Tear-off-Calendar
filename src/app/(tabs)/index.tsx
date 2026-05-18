@@ -29,9 +29,11 @@ import { CARD_HEIGHT, CARD_WIDTH } from '@/constants/cardLayout';
 import { useNativeCalendarStore } from '@/store/nativeCalendarStore';
 import { useNavigationStore } from '@/store/navigationStore';
 import { useSettingsStore } from '@/store/settingsStore';
+import { useWeatherStore } from '@/store/weatherStore';
 import type { NativeCalendarEvent } from '@/types/event';
 import type { AppTheme, CardStyle } from '@/types/settings';
 import { getBackgroundGradient, getThemeColors } from '@/utils/theme';
+import { wmoInfo, type DayWeatherData } from '@/utils/weather';
 
 // ── 画面レイアウト用の定数 ────────────────────────────────────────────────
 // CARD_WIDTH / CARD_HEIGHT はカレンダー画面と共通化（src/constants/cardLayout.ts）。
@@ -215,6 +217,7 @@ type DailyCardProps = {
   events: NativeCalendarEvent[];
   cardStyle: CardStyle;
   onEventPress: (evt: NativeCalendarEvent) => void;
+  weather: DayWeatherData | null;
 };
 
 const DailyCard = React.memo(function DailyCard({
@@ -227,6 +230,7 @@ const DailyCard = React.memo(function DailyCard({
   events,
   cardStyle,
   onEventPress,
+  weather,
 }: DailyCardProps) {
   const year = dObj.getFullYear();
   const month = dObj.getMonth() + 1;
@@ -301,6 +305,14 @@ const DailyCard = React.memo(function DailyCard({
             )}
             <Text style={styles.monthDayOnPhoto}>{month}月{date}日</Text>
             <Text style={styles.dayOfWeekOnPhoto}>{dayStr}曜日</Text>
+            {weather && (
+              <View style={styles.weatherRowOnPhoto}>
+                <Text style={styles.weatherEmoji}>{wmoInfo(weather.weatherCode).emoji}</Text>
+                <Text style={styles.weatherTextOnPhoto}>
+                  {weather.tempMax}° / {weather.tempMin}°
+                </Text>
+              </View>
+            )}
           </View>
         </View>
       ) : (
@@ -315,6 +327,15 @@ const DailyCard = React.memo(function DailyCard({
             <Text style={[styles.yearMonth, { color: isDarkMode ? '#bbb' : '#888' }]}>{year}年 {month}月</Text>
             <Text style={[styles.day, { color: dayColor }]}>{date}</Text>
             <Text style={[styles.dayOfWeek, { color: dayColor }]}>{dayStr}曜日</Text>
+            {weather && (
+              <View style={styles.weatherRowOnNoImage}>
+                <Text style={styles.weatherEmoji}>{wmoInfo(weather.weatherCode).emoji}</Text>
+                <Text style={[styles.weatherTextOnNoImage, { color: isDarkMode ? '#ddd' : '#444' }]}>
+                  {wmoInfo(weather.weatherCode).label}{'  '}
+                  {weather.tempMax}° / {weather.tempMin}°
+                </Text>
+              </View>
+            )}
           </View>
         </View>
       )}
@@ -350,6 +371,8 @@ export default function HomeScreen() {
   const { isBgEnabled, bgUri: fixedBgUri, bgUris, bgMode, appTheme, isDarkMode, lastViewedDay, setLastViewedDay, cardStyle } = useSettingsStore();
   const { getEventsForDate, removeEvent } = useNativeCalendarStore();
   useNativeCalendarStore((state) => state.eventsByDate); // 更新監視用
+
+  const { getForDate: getWeather, fetchForDate: fetchWeather } = useWeatherStore();
 
   const themeColors = getThemeColors(isDarkMode);
 
@@ -422,6 +445,12 @@ export default function HomeScreen() {
     // 初回のみ実行
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // 表示日が変わったらキャッシュ外の天気をバックグラウンドで取得
+  useEffect(() => {
+    const dates = [prevDateObj, currentDateObj, nextDateObj];
+    for (const d of dates) fetchWeather(toDateStr(d));
+  }, [currentDateObj, prevDateObj, nextDateObj, fetchWeather]);
 
   /**
    * 紙を破るジェスチャーの制御
@@ -545,6 +574,7 @@ export default function HomeScreen() {
             events={getEventsForDate(toDateStr(nextDateObj))}
             cardStyle={cardStyle}
             onEventPress={handleEventPress}
+            weather={getWeather(toDateStr(nextDateObj))}
           />
         </Animated.View>
 
@@ -561,6 +591,7 @@ export default function HomeScreen() {
             events={getEventsForDate(toDateStr(currentDateObj))}
             cardStyle={cardStyle}
             onEventPress={handleEventPress}
+            weather={getWeather(toDateStr(currentDateObj))}
           />
         </Animated.View>
 
@@ -580,6 +611,7 @@ export default function HomeScreen() {
             events={getEventsForDate(toDateStr(prevDateObj))}
             cardStyle={cardStyle}
             onEventPress={handleEventPress}
+            weather={getWeather(toDateStr(prevDateObj))}
           />
         </Animated.View>
 
@@ -709,6 +741,15 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(0,0,0,0.3)', textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 3,
   },
+  weatherRowOnPhoto: {
+    flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4,
+  },
+  weatherEmoji: { fontSize: 14 },
+  weatherTextOnPhoto: {
+    fontSize: 13, fontWeight: '600', color: 'rgba(255,255,255,0.90)',
+    textShadowColor: 'rgba(0,0,0,0.4)', textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
 
   // 画像がない場合の日付のスタイル
   dateOnNoImage: { alignItems: 'center', justifyContent: 'center', width: '100%', paddingHorizontal: 20 },
@@ -720,6 +761,10 @@ const styles = StyleSheet.create({
   yearMonth: { fontSize: 14, fontWeight: '600', color: '#888', letterSpacing: 0.5 },
   day: { fontWeight: '800', fontSize: 90, letterSpacing: -2, lineHeight: 96 },
   dayOfWeek: { fontSize: 22, fontWeight: '700', marginLeft: 6 },
+  weatherRowOnNoImage: {
+    flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 6,
+  },
+  weatherTextOnNoImage: { fontSize: 13, fontWeight: '600' },
 
   // 予定表示セクション（和紙のような背景色を設定可能）
   eventsSection: {

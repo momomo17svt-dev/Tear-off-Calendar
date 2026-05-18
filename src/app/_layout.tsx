@@ -15,6 +15,7 @@ import { useDiaryStore } from '@/store/diaryStore';
 import { useHealthStore } from '@/store/healthStore';
 import { useNativeCalendarStore } from '@/store/nativeCalendarStore';
 import { useSettingsStore } from '@/store/settingsStore';
+import { useWeatherStore } from '@/store/weatherStore';
 
 /**
  * Expo Router の静的設定
@@ -77,6 +78,9 @@ export default function RootLayout() {
         if (healthStore.healthEnabled) {
           healthStore.authorize().catch(() => { /* エラーは authError に格納済み */ });
         }
+
+        // 5. 天気データの初期化（位置情報取得 → Open-Meteo フェッチ、非ブロッキング）
+        useWeatherStore.getState().initWeather().catch(() => { /* 失敗は無視 */ });
         
         // 全ての準備が整ったことを通知
         setIsReady(true);
