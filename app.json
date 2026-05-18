@@ -65,6 +65,14 @@
         {
           "userTrackingPermission": "パーソナライズされた最適な広告を表示するために、アクセスを許可してください。"
         }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "日記にその日の写真を提案するためにフォトライブラリへのアクセスを許可してください。",
+          "savePhotosPermission": "保存した写真の管理のためにアクセスを許可してください。",
+          "isAccessMediaLocationEnabled": false
+        }
       ]
     ],
     "experiments": {

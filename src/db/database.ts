@@ -50,6 +50,14 @@ export async function initDatabase(): Promise<void> {
     );
     CREATE INDEX IF NOT EXISTS idx_diaries_date ON diaries(date);
     CREATE INDEX IF NOT EXISTS idx_diaries_date_created ON diaries(date DESC, created_at DESC);
+
+    -- 日記タグのマスター。日記モーダルではここからのみ選択可能。
+    -- name はユニーク制約（COLLATE NOCASE で大小同一視）。タイポ防止のための一元管理。
+    CREATE TABLE IF NOT EXISTS tags (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      name       TEXT    NOT NULL UNIQUE COLLATE NOCASE,
+      created_at INTEGER NOT NULL
+    );
   `);
 
   // 初回起動時に必要なデフォルト設定値
@@ -78,6 +86,7 @@ export async function resetDatabase(): Promise<void> {
   await db.execAsync(`
     DROP TABLE IF EXISTS events;
     DROP TABLE IF EXISTS diaries;
+    DROP TABLE IF EXISTS tags;
     DROP TABLE IF EXISTS settings;
   `);
   await initDatabase();

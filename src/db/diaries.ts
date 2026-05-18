@@ -182,3 +182,34 @@ export async function getDiaryById(id: number): Promise<Diary | null> {
   );
   return row ? rowToDiary(row) : null;
 }
+
+/**
+ * 既存日記から全ユニークタグを集計し、使用頻度の降順 → タグ名昇順で返す。
+ * 日記モーダルのタグ選択 UI の候補として使う。
+ * 専用テーブルを持たず、過去の日記の tags JSON を集計するシンプル実装。
+ */
+export async function getAllUniqueTags(): Promise<string[]> {
+  const db = await getDb();
+  const rows = await db.getAllAsync<{ tags: string | null }>(
+    `SELECT tags FROM diaries WHERE tags IS NOT NULL AND tags <> '' AND tags <> '[]'`
+  );
+  const freq = new Map<string, number>();
+  for (const row of rows) {
+    if (!row.tags) continue;
+    try {
+      const arr: unknown = JSON.parse(row.tags);
+      if (!Array.isArray(arr)) continue;
+      for (const t of arr) {
+        if (typeof t !== 'string') continue;
+        const trimmed = t.trim();
+        if (!trimmed) continue;
+        freq.set(trimmed, (freq.get(trimmed) ?? 0) + 1);
+      }
+    } catch (e) {
+      console.warn('Failed to parse diary.tags in getAllUniqueTags', e);
+    }
+  }
+  return [...freq.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'ja'))
+    .map(([tag]) => tag);
+}

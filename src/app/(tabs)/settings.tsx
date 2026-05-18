@@ -1,11 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
+  AppState,
   Dimensions,
+  Linking,
+  Platform,
   StyleSheet,
   View,
   Switch,
   Alert,
   ScrollView,
+  TextInput,
   TouchableOpacity,
   Text,
   ActivityIndicator,
@@ -16,10 +20,13 @@ import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImageManipulator from 'expo-image-manipulator';
+import * as MediaLibrary from 'expo-media-library';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useNativeCalendarStore } from '@/store/nativeCalendarStore';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { getThemeColors, getBackgroundGradient } from '@/utils/theme';
+import { ensurePhotoPermission, presentLimitedLibraryPicker } from '@/utils/diaryImages';
+import { deleteTag, getAllTags, insertTag, renameTag, type Tag } from '@/db/tags';
 
 /**
  * 設定画面コンポーネント
@@ -73,11 +80,132 @@ export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const [isLoading, setIsLoading] = useState(false);
 
+  // 日記の写真アクセス権限状態
+  // 'unknown' は初回フェッチ前 / 取得失敗時のフォールバック。それ以外は MediaLibrary の生値を保持する。
+  const [photoPermStatus, setPhotoPermStatus] = useState<MediaLibrary.PermissionStatus | 'unknown'>('unknown');
+  const [photoAccessPrivileges, setPhotoAccessPrivileges] =
+    useState<MediaLibrary.PermissionResponse['accessPrivileges']>('none');
+
+  /**
+   * 現在の写真ライブラリ権限を再フェッチして state に反映する。
+   * 設定アプリから戻ってきたタイミングなどで呼び出す。
+   */
+  const refreshPhotoPerm = useCallback(async () => {
+    try {
+      const perm = await MediaLibrary.getPermissionsAsync();
+      setPhotoPermStatus(perm.status);
+      setPhotoAccessPrivileges(perm.accessPrivileges);
+    } catch {
+      setPhotoPermStatus('unknown');
+      setPhotoAccessPrivileges('none');
+    }
+  }, []);
+
   // コンポーネントマウント時に利用可能なカレンダーを読み込む
   useEffect(() => {
     loadCalendars();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // 写真権限の初回取得 + AppState がアクティブに戻った時の再取得（設定アプリから戻った時の追従）
+  useEffect(() => {
+    refreshPhotoPerm();
+    const sub = AppState.addEventListener('change', (next) => {
+      if (next === 'active') refreshPhotoPerm();
+    });
+    return () => sub.remove();
+  }, [refreshPhotoPerm]);
+
+  /**
+   * 「アクセスを許可」ボタン押下。
+   * 未確認 → OS のダイアログを出す。それ以外（denied 等）は設定アプリへ誘導する。
+   */
+  const handleRequestPhotoPerm = async () => {
+    if (photoPermStatus === 'undetermined' || photoPermStatus === 'unknown') {
+      await ensurePhotoPermission();
+      await refreshPhotoPerm();
+      return;
+    }
+    // 既に拒否済みなどでアプリからは変更不可。設定アプリへ
+    await Linking.openSettings();
+  };
+
+  /** iOS の制限付きアクセス時、許可写真の選択を変更する OS ピッカーを表示する。 */
+  const handleOpenLimitedPicker = async () => {
+    await presentLimitedLibraryPicker();
+    await refreshPhotoPerm();
+  };
+
+  // ── 日記タグマスター ──
+  const [tagList, setTagList] = useState<Tag[]>([]);
+  const [newTagInput, setNewTagInput] = useState('');
+  /** リネーム編集中のタグ ID（null なら誰も編集中でない）。 */
+  const [editingTagId, setEditingTagId] = useState<number | null>(null);
+  const [editingTagName, setEditingTagName] = useState('');
+
+  /** マスタータグ一覧を DB から再取得して state に反映する。 */
+  const refreshTags = useCallback(async () => {
+    try {
+      const list = await getAllTags();
+      setTagList(list);
+    } catch (e) {
+      console.warn('refreshTags failed', e);
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshTags();
+  }, [refreshTags]);
+
+  /** 新規タグを追加する。重複・空文字は無視（insertTag 側でガード済み）。 */
+  const handleAddTag = async () => {
+    const name = newTagInput.trim();
+    if (!name) return;
+    await insertTag(name);
+    setNewTagInput('');
+    await refreshTags();
+  };
+
+  /** タグマスターから削除。過去日記の tags JSON は触らない（履歴保護）。 */
+  const handleDeleteTag = (tag: Tag) => {
+    Alert.alert(
+      'タグを削除',
+      `「${tag.name}」を削除しますか？\n（過去の日記についているこのタグはそのまま残ります）`,
+      [
+        { text: 'キャンセル', style: 'cancel' },
+        {
+          text: '削除',
+          style: 'destructive',
+          onPress: async () => {
+            await deleteTag(tag.id);
+            await refreshTags();
+          },
+        },
+      ]
+    );
+  };
+
+  const handleStartRename = (tag: Tag) => {
+    setEditingTagId(tag.id);
+    setEditingTagName(tag.name);
+  };
+
+  const handleCancelRename = () => {
+    setEditingTagId(null);
+    setEditingTagName('');
+  };
+
+  const handleCommitRename = async () => {
+    if (editingTagId === null) return;
+    const next = editingTagName.trim();
+    if (!next) {
+      handleCancelRename();
+      return;
+    }
+    await renameTag(editingTagId, next);
+    handleCancelRename();
+    await refreshTags();
+  };
 
   // 現在のモード（ライト/ダーク）に応じた色を取得
   const themeColors = getThemeColors(isDarkMode);
@@ -208,6 +336,167 @@ export default function SettingsScreen() {
                   />
                 </View>
               ))}
+            </View>
+          )}
+        </View>
+
+        {/* ── 日記の写真アクセス ── */}
+        <View style={[styles.section, { backgroundColor: isDarkMode ? '#2C2C2E' : '#FFFFFF' }]}>
+          <Text style={[styles.sectionTitle, { color: themeColors.textMain }]}>📷 日記の写真アクセス</Text>
+          <Text style={[styles.sectionDesc, { color: themeColors.textSub }]}>
+            日記モーダルで「その日の写真」を提案するために使います
+          </Text>
+
+          {(() => {
+            // ステータス文言と推奨アクションのラベルを状態から導出
+            let statusLabel = '未確認';
+            let statusColor = '#94a3b8';
+            let primaryAction: { label: string; onPress: () => void } | null = null;
+            let secondaryAction: { label: string; onPress: () => void } | null = null;
+
+            if (photoPermStatus === 'granted' && photoAccessPrivileges === 'all') {
+              statusLabel = '✓ すべての写真を許可中';
+              statusColor = '#16a34a';
+              secondaryAction = { label: '設定アプリで変更', onPress: () => Linking.openSettings() };
+            } else if (photoPermStatus === 'granted' && photoAccessPrivileges === 'limited') {
+              statusLabel = '⚠️ 制限付きアクセス（一部の写真のみ）';
+              statusColor = '#d97706';
+              primaryAction = { label: '写真の選択を変更', onPress: handleOpenLimitedPicker };
+              secondaryAction = { label: '設定アプリで全許可にする', onPress: () => Linking.openSettings() };
+            } else if (photoPermStatus === 'denied') {
+              statusLabel = '✕ アクセスが許可されていません';
+              statusColor = '#dc2626';
+              primaryAction = { label: '設定アプリを開く', onPress: () => Linking.openSettings() };
+            } else {
+              // undetermined / unknown
+              statusLabel = '— まだ許可をリクエストしていません';
+              statusColor = '#94a3b8';
+              primaryAction = { label: 'アクセスを許可', onPress: handleRequestPhotoPerm };
+            }
+
+            return (
+              <>
+                <Text style={[styles.photoPermStatus, { color: statusColor }]}>{statusLabel}</Text>
+                <View style={styles.photoPermButtonRow}>
+                  {primaryAction && (
+                    <TouchableOpacity
+                      style={styles.photoPermPrimaryButton}
+                      onPress={primaryAction.onPress}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={styles.photoPermPrimaryText}>{primaryAction.label}</Text>
+                    </TouchableOpacity>
+                  )}
+                  {secondaryAction && (
+                    <TouchableOpacity
+                      style={[styles.photoPermSecondaryButton, { borderColor: themeColors.border }]}
+                      onPress={secondaryAction.onPress}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={[styles.photoPermSecondaryText, { color: themeColors.textMain }]}>
+                        {secondaryAction.label}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+                {Platform.OS === 'android' && (
+                  <Text style={[styles.photoPermNote, { color: themeColors.textSub }]}>
+                    Android では「制限付きアクセス」の概念はありません。
+                  </Text>
+                )}
+              </>
+            );
+          })()}
+        </View>
+
+        {/* ── 日記タグの管理 ── */}
+        <View style={[styles.section, { backgroundColor: isDarkMode ? '#2C2C2E' : '#FFFFFF' }]}>
+          <Text style={[styles.sectionTitle, { color: themeColors.textMain }]}>🏷 日記タグの管理</Text>
+          <Text style={[styles.sectionDesc, { color: themeColors.textSub }]}>
+            日記モーダルではここに登録したタグからのみ選択できます（タイポ防止）
+          </Text>
+
+          {/* 新規追加入力 */}
+          <View style={styles.tagAddRow}>
+            <TextInput
+              style={[
+                styles.tagAddInput,
+                { backgroundColor: isDarkMode ? '#1c1c1e' : '#f8fafc', borderColor: themeColors.border, color: themeColors.textMain },
+              ]}
+              value={newTagInput}
+              onChangeText={setNewTagInput}
+              onSubmitEditing={handleAddTag}
+              placeholder="新しいタグを追加..."
+              placeholderTextColor={isDarkMode ? '#555' : '#bbb'}
+              autoCorrect={false}
+              autoCapitalize="none"
+              returnKeyType="done"
+            />
+            <TouchableOpacity
+              style={[styles.tagAddButton, !newTagInput.trim() && styles.tagAddButtonDisabled]}
+              onPress={handleAddTag}
+              disabled={!newTagInput.trim()}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.tagAddButtonText}>＋ 追加</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* タグ一覧 */}
+          {tagList.length === 0 ? (
+            <Text style={[styles.tagEmpty, { color: themeColors.textSub }]}>
+              まだタグが登録されていません。
+            </Text>
+          ) : (
+            <View style={styles.tagList}>
+              {tagList.map((tag) => {
+                const isEditing = editingTagId === tag.id;
+                return (
+                  <View
+                    key={tag.id}
+                    style={[
+                      styles.tagRow,
+                      { borderBottomColor: themeColors.border },
+                    ]}
+                  >
+                    {isEditing ? (
+                      <>
+                        <TextInput
+                          style={[
+                            styles.tagRenameInput,
+                            { borderColor: themeColors.border, color: themeColors.textMain, backgroundColor: isDarkMode ? '#1c1c1e' : '#f8fafc' },
+                          ]}
+                          value={editingTagName}
+                          onChangeText={setEditingTagName}
+                          autoFocus
+                          autoCorrect={false}
+                          autoCapitalize="none"
+                          onSubmitEditing={handleCommitRename}
+                          returnKeyType="done"
+                        />
+                        <TouchableOpacity onPress={handleCommitRename} hitSlop={8}>
+                          <Text style={styles.tagRowActionPrimary}>保存</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={handleCancelRename} hitSlop={8}>
+                          <Text style={[styles.tagRowAction, { color: themeColors.textSub }]}>キャンセル</Text>
+                        </TouchableOpacity>
+                      </>
+                    ) : (
+                      <>
+                        <Text style={[styles.tagRowName, { color: themeColors.textMain }]} numberOfLines={1}>
+                          #{tag.name}
+                        </Text>
+                        <TouchableOpacity onPress={() => handleStartRename(tag)} hitSlop={8}>
+                          <Text style={styles.tagRowAction}>編集</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={() => handleDeleteTag(tag)} hitSlop={8}>
+                          <Text style={styles.tagRowDelete}>削除</Text>
+                        </TouchableOpacity>
+                      </>
+                    )}
+                  </View>
+                );
+              })}
             </View>
           )}
         </View>
@@ -685,6 +974,115 @@ const styles = StyleSheet.create({
     borderRadius: 11,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  // ── 日記タグ管理セクション ──
+  tagAddRow: {
+    flexDirection: 'row',
+    gap: 8,
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  tagAddInput: {
+    flex: 1,
+    borderWidth: 1.5,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: Platform.OS === 'ios' ? 10 : 6,
+    fontSize: 14,
+  },
+  tagAddButton: {
+    backgroundColor: '#0a7ea4',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 10,
+  },
+  tagAddButtonDisabled: {
+    opacity: 0.4,
+  },
+  tagAddButtonText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  tagEmpty: {
+    fontSize: 13,
+    paddingVertical: 8,
+  },
+  tagList: {
+    marginTop: 4,
+  },
+  tagRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 4,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  tagRowName: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  tagRowAction: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0a7ea4',
+  },
+  tagRowActionPrimary: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#0a7ea4',
+  },
+  tagRowDelete: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#dc2626',
+  },
+  tagRenameInput: {
+    flex: 1,
+    borderWidth: 1.5,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: Platform.OS === 'ios' ? 6 : 2,
+    fontSize: 14,
+  },
+
+  // ── 日記の写真アクセスセクション ──
+  photoPermStatus: {
+    fontSize: 14,
+    fontWeight: '700',
+    marginBottom: 12,
+  },
+  photoPermButtonRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  photoPermPrimaryButton: {
+    backgroundColor: '#0a7ea4',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 10,
+  },
+  photoPermPrimaryText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  photoPermSecondaryButton: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1.5,
+  },
+  photoPermSecondaryText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  photoPermNote: {
+    fontSize: 12,
+    marginTop: 10,
   },
   aboutSection: {
     alignItems: 'center',
