@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Tear-off-Calendar",
-    "owner": "tatsunobu",
+    "owner": "pupumaru",
     "slug": "tear-off-calendar",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -24,7 +24,14 @@
       "predictiveBackGestureEnabled": false,
       "permissions": [
         "android.permission.READ_CALENDAR",
-        "android.permission.WRITE_CALENDAR"
+        "android.permission.WRITE_CALENDAR",
+        "com.google.android.gms.permission.AD_ID",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.READ_MEDIA_VISUAL_USER_SELECTED",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_MEDIA_VIDEO",
+        "android.permission.READ_MEDIA_AUDIO"
       ]
     },
     "web": {
@@ -83,7 +90,7 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "8855a533-d6c9-41bf-a41e-6d8ea90882af"
+        "projectId": "701ada7f-df41-49a1-bc30-9636c39bcf30"
       }
     }
   }
