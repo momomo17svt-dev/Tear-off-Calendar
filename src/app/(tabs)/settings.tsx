@@ -21,8 +21,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as MediaLibrary from 'expo-media-library';
-import { useSettingsStore } from '@/store/settingsStore';
+import { useHealthStore } from '@/store/healthStore';
 import { useNativeCalendarStore } from '@/store/nativeCalendarStore';
+import { useSettingsStore } from '@/store/settingsStore';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { getThemeColors, getBackgroundGradient } from '@/utils/theme';
 import { ensurePhotoPermission, presentLimitedLibraryPicker } from '@/utils/diaryImages';
@@ -76,6 +77,12 @@ export default function SettingsScreen() {
 
   // ネイティブカレンダー（iOS/Androidのカレンダーアプリ）の状態を取得
   const { availableCalendars, loadCalendars, fetchAll } = useNativeCalendarStore();
+
+  // ヘルスケア連携設定
+  const {
+    healthEnabled, showSteps, showSleep, showHeartRate, showActiveEnergy, showWeight,
+    setHealthEnabled, setShowItem,
+  } = useHealthStore();
 
   const insets = useSafeAreaInsets();
   const [isLoading, setIsLoading] = useState(false);
@@ -668,6 +675,58 @@ export default function SettingsScreen() {
           )}
         </View>
 
+        {/* ── ヘルスケア連携（iOS のみ） ── */}
+        {Platform.OS === 'ios' && (
+          <View style={[styles.section, { backgroundColor: isDarkMode ? '#2C2C2E' : '#FFFFFF' }]}>
+            <View style={styles.sectionHeader}>
+              <View>
+                <Text style={[styles.sectionTitle, { color: themeColors.textMain }]}>❤️‍🩹 ヘルスケア連携</Text>
+                <Text style={[styles.sectionDesc, { color: themeColors.textSub }]}>
+                  日記タブにその日の歩数・睡眠などを表示します
+                </Text>
+              </View>
+              <Switch
+                value={healthEnabled}
+                onValueChange={setHealthEnabled}
+                trackColor={{ false: '#d1d5db', true: '#30d158' }}
+                thumbColor={healthEnabled ? '#ffffff' : '#f4f3f4'}
+              />
+            </View>
+
+            {healthEnabled && (
+              <View style={styles.healthItemList}>
+                {([
+                  { key: 'showSteps',        emoji: '🏃', label: '歩数',        value: showSteps },
+                  { key: 'showActiveEnergy', emoji: '🔥', label: '消費カロリー',  value: showActiveEnergy },
+                  { key: 'showSleep',        emoji: '😴', label: '睡眠',        value: showSleep },
+                  { key: 'showHeartRate',    emoji: '❤️', label: '心拍数',      value: showHeartRate },
+                  { key: 'showWeight',       emoji: '⚖️', label: '体重',        value: showWeight },
+                ] as const).map((item, idx, arr) => (
+                  <View
+                    key={item.key}
+                    style={[
+                      styles.healthItemRow,
+                      { borderBottomColor: themeColors.border },
+                      idx === arr.length - 1 && styles.healthItemRowLast,
+                    ]}
+                  >
+                    <Text style={styles.healthItemEmoji}>{item.emoji}</Text>
+                    <Text style={[styles.healthItemLabel, { color: themeColors.textMain }]}>
+                      {item.label}
+                    </Text>
+                    <Switch
+                      value={item.value}
+                      onValueChange={(v) => setShowItem(item.key, v)}
+                      trackColor={{ false: '#d1d5db', true: '#a5f3fc' }}
+                      thumbColor={item.value ? '#0a7ea4' : '#9ca3af'}
+                    />
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
+        )}
+
         {/* ── アプリ情報 ── */}
         <View style={[styles.section, styles.aboutSection, { backgroundColor: isDarkMode ? '#2C2C2E' : '#FFFFFF' }]}>
           <Text style={[styles.appName, { color: themeColors.textMain }]}>📅 日めくりカレンダー</Text>
@@ -974,6 +1033,31 @@ const styles = StyleSheet.create({
     borderRadius: 11,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  // ── ヘルスケアセクション ──
+  healthItemList: {
+    marginTop: 4,
+  },
+  healthItemRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 4,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  healthItemRowLast: {
+    borderBottomWidth: 0,
+  },
+  healthItemEmoji: {
+    fontSize: 18,
+    width: 26,
+    textAlign: 'center',
+  },
+  healthItemLabel: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '500',
   },
   // ── 日記タグ管理セクション ──
   tagAddRow: {

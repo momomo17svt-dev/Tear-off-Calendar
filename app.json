@@ -33,6 +33,7 @@
     },
     "plugins": [
       "expo-router",
+      "./plugins/withHealthKit",
       [
         "expo-splash-screen",
         {

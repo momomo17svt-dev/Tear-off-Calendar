@@ -82,6 +82,13 @@
 - [x] 【ホーム/カレンダー】iPad で前日/前月カードがチラ見えする問題を解消（`FLY_OUT_DISTANCE = SCREEN_HEIGHT + 100`）
 - [x] 【ホーム/カレンダー】カード寸法を `src/constants/cardLayout.ts` に共通化し、タブ切替時の上端ジャンプを解消
 
+## フェーズ 11: HealthKit（ヘルスケア）連携
+- [ ] 【HealthKit】`react-native-health` の導入と Config Plugin（`plugins/withHealthKit.js`）による iOS 権限設定
+- [ ] 【HealthKit】`src/utils/healthKit.ts`：歩数・消費カロリー・睡眠・心拍数・体重の取得関数
+- [ ] 【HealthKit】`src/store/healthStore.ts`：認証状態と日付ごとのデータキャッシュ、表示設定の永続化
+- [ ] 【HealthKit】`src/components/HealthSummary.tsx`：日記タブ FlatList の ListHeaderComponent として各メトリクスをチップ表示
+- [ ] 【設定タブ】「❤️‍🩹 ヘルスケア連携」セクションを追加（全体 ON/OFF + 各項目トグル）
+
 ## フェーズ 10: 日記の写真サジェスト・SNS風UI・タグマスター
 - [x] 【日記タブ】`expo-media-library` を導入し、iOS 権限文言を `app.json` に設定
 - [x] 【日記タブ】`diaryImages.ts` に「指定日の撮影写真取得」「アセット → 日記画像化」「権限ハンドリング」関数を追加

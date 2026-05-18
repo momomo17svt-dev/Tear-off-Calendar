@@ -24,6 +24,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { DiaryCard } from '@/components/DiaryCard';
+import { HealthSummary } from '@/components/HealthSummary';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useDiaryStore } from '@/store/diaryStore';
 import { useNavigationStore } from '@/store/navigationStore';
@@ -330,6 +331,16 @@ export default function DiaryScreen() {
               onPress={handleCardPress}
             />
           )}
+          ListHeaderComponent={
+            !isSearchMode ? (
+              <HealthSummary
+                dateStr={selectedDate}
+                isDarkMode={isDarkMode}
+                themeColors={themeColors}
+                onGoToSettings={handleGoToSettings}
+              />
+            ) : null
+          }
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={

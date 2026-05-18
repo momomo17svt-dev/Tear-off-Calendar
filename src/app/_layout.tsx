@@ -12,6 +12,7 @@ import { initDatabase } from '@/db/database';
 import { migrateTagsFromDiariesIfNeeded } from '@/db/tags';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useDiaryStore } from '@/store/diaryStore';
+import { useHealthStore } from '@/store/healthStore';
 import { useNativeCalendarStore } from '@/store/nativeCalendarStore';
 import { useSettingsStore } from '@/store/settingsStore';
 
@@ -69,6 +70,13 @@ export default function RootLayout() {
           useNativeCalendarStore.getState().fetchAll(),      // 直近の予定データを一括フェッチ
           useDiaryStore.getState().fetchAll(),               // 日記をメモリキャッシュへ読み込み
         ]);
+
+        // 4. ヘルスケア設定を読み込み、連携が ON なら認証を試みる（非ブロッキング）
+        const healthStore = useHealthStore.getState();
+        await healthStore.loadSettings();
+        if (healthStore.healthEnabled) {
+          healthStore.authorize().catch(() => { /* エラーは authError に格納済み */ });
+        }
         
         // 全ての準備が整ったことを通知
         setIsReady(true);

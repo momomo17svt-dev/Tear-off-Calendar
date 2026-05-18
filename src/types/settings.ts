@@ -13,7 +13,13 @@ export type SettingKey =
   | 'last_viewed_day'        // ホーム画面で最後に表示した日付
   | 'last_viewed_month'      // カレンダー画面で最後に表示した年月
   | 'card_style'             // カレンダーカードのデザインスタイル
-  | 'is_premium';            // 課金で広告非表示プランを購入済みか
+  | 'is_premium'            // 課金で広告非表示プランを購入済みか
+  | 'health_enabled'        // ヘルスケア連携 ON/OFF
+  | 'health_show_steps'     // 歩数を表示するか
+  | 'health_show_sleep'     // 睡眠を表示するか
+  | 'health_show_heart_rate'    // 心拍数を表示するか
+  | 'health_show_active_energy' // 消費カロリーを表示するか
+  | 'health_show_weight';   // 体重を表示するか
 
 /**
  * SQLite データベースに保存される設定データの1行分
