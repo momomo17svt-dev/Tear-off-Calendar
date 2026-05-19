@@ -39,6 +39,10 @@ interface SettingsState {
   setCardStyle: (style: CardStyle) => Promise<void>;
   /** 課金状態を更新する（StoreKit/Billing 連携時に呼ぶ） */
   setPremium: (enabled: boolean) => Promise<void>;
+  /** 日付ごとの固定背景画像 (YYYY-MM-DD → URI) */
+  perDayBgUris: Record<string, string>;
+  /** カードの画像エリアタップで選んだ画像をその日付に紐付ける */
+  setDayBgUri: (date: string, uri: string) => Promise<void>;
 }
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({
@@ -55,6 +59,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   lastViewedMonth: null,
   cardStyle: 'tear-off',      // デフォルトのカードデザイン
   isPremium: false,           // 課金未購入をデフォルト
+  perDayBgUris: {},           // 日付ごとの固定背景画像
   isLoading: false,           // 設定読み込み中フラグ
 
   /**
@@ -78,6 +83,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       lastViewedMonth: s.lastViewedMonth,
       cardStyle: s.cardStyle,
       isPremium: s.isPremium,
+      perDayBgUris: s.perDayBgUris,
       isLoading: false,
     });
   },
@@ -170,5 +176,12 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   setPremium: async (enabled) => {
     await setSetting('is_premium', enabled ? '1' : '0');
     set({ isPremium: enabled });
+  },
+
+  setDayBgUri: async (date, uri) => {
+    const { perDayBgUris } = get();
+    const next = { ...perDayBgUris, [date]: uri };
+    await setSetting('per_day_bg_uris', JSON.stringify(next));
+    set({ perDayBgUris: next, isBgEnabled: true });
   },
 }));

@@ -19,7 +19,9 @@ export type SettingKey =
   | 'health_show_sleep'     // 睡眠を表示するか
   | 'health_show_heart_rate'    // 心拍数を表示するか
   | 'health_show_active_energy' // 消費カロリーを表示するか
-  | 'health_show_weight';   // 体重を表示するか
+  | 'health_show_weight'    // 体重を表示するか
+  | 'per_day_bg_uris'       // 日付ごとの背景画像URI (YYYY-MM-DD → URI の JSON)
+  | 'migrated_tags_from_diaries'; // タグマイグレーション済みフラグ
 
 /**
  * SQLite データベースに保存される設定データの1行分
@@ -68,4 +70,6 @@ export interface AppSettings {
   cardStyle: CardStyle;
   /** 課金で広告非表示プランを購入済みか（true なら広告を非表示） */
   isPremium: boolean;
+  /** 日付ごとに固定された背景画像URI (YYYY-MM-DD → URI) */
+  perDayBgUris: Record<string, string>;
 }

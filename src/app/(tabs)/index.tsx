@@ -5,7 +5,10 @@
  */
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import * as Calendar from 'expo-calendar';
+import * as FileSystem from 'expo-file-system/legacy';
 import { Image } from 'expo-image';
+import * as ImageManipulator from 'expo-image-manipulator';
+import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -218,6 +221,7 @@ type DailyCardProps = {
   cardStyle: CardStyle;
   onEventPress: (evt: NativeCalendarEvent) => void;
   weather: DayWeatherData | null;
+  onImageAreaPress?: () => void;
 };
 
 const DailyCard = React.memo(function DailyCard({
@@ -231,6 +235,7 @@ const DailyCard = React.memo(function DailyCard({
   cardStyle,
   onEventPress,
   weather,
+  onImageAreaPress,
 }: DailyCardProps) {
   const year = dObj.getFullYear();
   const month = dObj.getMonth() + 1;
@@ -285,10 +290,14 @@ const DailyCard = React.memo(function DailyCard({
 
       {/* メインエリア：背景画像（またはテーマ色）と日付表示 */}
       {bgUri ? (
-        <View style={[styles.imageHeader, { height: imageH }]}>
-          <Image 
-            source={{ uri: bgUri }} 
-            style={StyleSheet.absoluteFill} 
+        <TouchableOpacity
+          activeOpacity={onImageAreaPress ? 0.88 : 1}
+          onPress={onImageAreaPress}
+          style={[styles.imageHeader, { height: imageH }]}
+        >
+          <Image
+            source={{ uri: bgUri }}
+            style={StyleSheet.absoluteFill}
             contentFit="cover"
             transition={0}
             cachePolicy="memory-disk"
@@ -314,9 +323,18 @@ const DailyCard = React.memo(function DailyCard({
               </View>
             )}
           </View>
-        </View>
+          {onImageAreaPress && (
+            <View style={styles.cameraHint}>
+              <Text style={styles.cameraHintText}>📷</Text>
+            </View>
+          )}
+        </TouchableOpacity>
       ) : (
-        <View style={[styles.noImageHeader, { height: imageH }]}>
+        <TouchableOpacity
+          activeOpacity={onImageAreaPress ? 0.88 : 1}
+          onPress={onImageAreaPress}
+          style={[styles.noImageHeader, { height: imageH }]}
+        >
           <LinearGradient colors={getBackgroundGradient(appTheme, isDarkMode)} style={StyleSheet.absoluteFill} />
           <View style={styles.dateOnNoImage}>
             {todayFlag && (
@@ -337,7 +355,12 @@ const DailyCard = React.memo(function DailyCard({
               </View>
             )}
           </View>
-        </View>
+          {onImageAreaPress && (
+            <View style={styles.cameraHint}>
+              <Text style={styles.cameraHintText}>📷 写真を設定</Text>
+            </View>
+          )}
+        </TouchableOpacity>
       )}
 
       {/* 下部：スケジュール表示エリア */}
@@ -368,7 +391,7 @@ export default function HomeScreen() {
   // 透過タブバーの実高さ（コンテンツが被らないように下端に確保する余白として使う）
   const tabBarHeight = useBottomTabBarHeight();
   // ストアから設定とカレンダーデータを取得
-  const { isBgEnabled, bgUri: fixedBgUri, bgUris, bgMode, appTheme, isDarkMode, lastViewedDay, setLastViewedDay, cardStyle } = useSettingsStore();
+  const { isBgEnabled, bgUri: fixedBgUri, bgUris, bgMode, appTheme, isDarkMode, lastViewedDay, setLastViewedDay, cardStyle, setDayBgUri, perDayBgUris } = useSettingsStore();
   const { getEventsForDate, removeEvent } = useNativeCalendarStore();
   useNativeCalendarStore((state) => state.eventsByDate); // 更新監視用
 
@@ -494,13 +517,42 @@ export default function HomeScreen() {
   const prevTranslateY = pan.y.interpolate({ inputRange: [-FLY_OUT_DISTANCE, 0], outputRange: [0, FLY_OUT_DISTANCE], extrapolate: 'clamp' });
   const prevRotateZ = pan.y.interpolate({ inputRange: [-FLY_OUT_DISTANCE, 0], outputRange: ['0deg', '-14deg'], extrapolate: 'clamp' });
 
-  // 背景画像のURIを取得（固定モード or 日替わりランダムモード）
+  // 背景画像のURIを取得。日付ごとの固定設定を最優先し、なければ通常のプール/固定から返す。
   const getBgUri = (dObj: Date) => {
+    const dateStr = toDateStr(dObj);
+    if (perDayBgUris[dateStr]) return perDayBgUris[dateStr];
     if (!isBgEnabled || bgUris.length === 0) return null;
     if (bgMode === 'fixed') return fixedBgUri || bgUris[0];
     const seed = dObj.getFullYear() * 373 + (dObj.getMonth() + 1) * 31 + dObj.getDate();
     return bgUris[seed % bgUris.length];
   };
+
+  /**
+   * 日めくりカードの画像エリアをタップした際に背景画像を登録する。
+   * 設定画面の pickImage と同じフローで処理し、addBgUri でプールに追加する。
+   */
+  const handlePickBgImage = useCallback(async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        quality: 0.85,
+      });
+      if (result.canceled || !result.assets?.length) return;
+
+      const manipResult = await ImageManipulator.manipulateAsync(
+        result.assets[0].uri,
+        [{ resize: { width: 1080 } }],
+        { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
+      );
+      const destUri = `${FileSystem.documentDirectory}bg_${Date.now()}.jpg`;
+      await FileSystem.copyAsync({ from: manipResult.uri, to: destUri });
+      // その日の固定画像として保存（他の日には影響しない）
+      await setDayBgUri(toDateStr(currentDateObj), destUri);
+    } catch {
+      Alert.alert('エラー', '画像の設定に失敗しました');
+    }
+  }, [setDayBgUri, currentDateObj]);
 
   /**
    * 予定をタップした際のメニュー表示（iOS: 標準ActionSheet, Android: カスタム）
@@ -592,6 +644,7 @@ export default function HomeScreen() {
             cardStyle={cardStyle}
             onEventPress={handleEventPress}
             weather={getWeather(toDateStr(currentDateObj))}
+            onImageAreaPress={handlePickBgImage}
           />
         </Animated.View>
 
@@ -726,6 +779,12 @@ const styles = StyleSheet.create({
   imageHeader: { width: '100%', overflow: 'hidden', position: 'relative' },
   noImageHeader: { width: '100%', alignItems: 'center', justifyContent: 'center' },
   imageGradient: { position: 'absolute', bottom: 0, left: 0, right: 0 },
+  cameraHint: {
+    position: 'absolute', bottom: 14, left: 14,
+    backgroundColor: 'rgba(0,0,0,0.32)', borderRadius: 14,
+    paddingHorizontal: 9, paddingVertical: 4,
+  },
+  cameraHintText: { fontSize: 13, color: '#fff', fontWeight: '600' },
 
   // 写真の上に表示される日付のスタイル
   dateOnPhoto: {

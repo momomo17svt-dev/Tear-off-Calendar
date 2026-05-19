@@ -25,7 +25,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { getDiaryById } from '@/db/diaries';
-import { getAllTags } from '@/db/tags';
+import { getAllTags, insertTag } from '@/db/tags';
 import { useDiaryStore } from '@/store/diaryStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import {
@@ -199,9 +199,23 @@ export default function ModalDiaryScreen() {
     [tagCandidates, selectedTags]
   );
 
+  const [newTagInput, setNewTagInput] = useState('');
+
   /** タグを選択中に追加する。重複は無視。 */
   const handleSelectTag = (tag: string) => {
     setSelectedTags((prev) => (prev.includes(tag) ? prev : [...prev, tag]));
+  };
+
+  /** 新規タグをDBに登録し、候補リストに追加して即選択する。 */
+  const handleAddNewTag = async () => {
+    const name = newTagInput.trim();
+    if (!name) return;
+    const tag = await insertTag(name);
+    if (tag) {
+      setTagCandidates((prev) => (prev.includes(tag.name) ? prev : [...prev, tag.name]));
+      setSelectedTags((prev) => (prev.includes(tag.name) ? prev : [...prev, tag.name]));
+    }
+    setNewTagInput('');
   };
 
   /** 選択中のタグを外す。 */
@@ -543,11 +557,25 @@ export default function ModalDiaryScreen() {
             </>
           )}
 
-          {tagCandidates.length === 0 && selectedTags.length === 0 && (
-            <Text style={[styles.tagCandidatesLabel, { color: themeColors.textSub, marginTop: 6 }]}>
-              まだタグが登録されていません。設定タブの「🏷 日記タグの管理」から登録してください。
-            </Text>
-          )}
+          {/* 新規タグをここから直接登録できる入力欄 */}
+          <View style={[styles.newTagRow, { borderColor: themeColors.border }]}>
+            <TextInput
+              style={[styles.newTagInput, { color: themeColors.textMain }]}
+              value={newTagInput}
+              onChangeText={setNewTagInput}
+              placeholder="新しいタグを追加..."
+              placeholderTextColor={isDarkMode ? '#555' : '#bbb'}
+              returnKeyType="done"
+              onSubmitEditing={handleAddNewTag}
+            />
+            <TouchableOpacity
+              style={[styles.newTagAddBtn, { opacity: newTagInput.trim() ? 1 : 0.4 }]}
+              onPress={handleAddNewTag}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.newTagAddBtnText}>＋</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* ── 画像 ── */}
@@ -821,4 +849,17 @@ const styles = StyleSheet.create({
   saveButtonDisabled: { opacity: 0.6 },
   saveGradient: { paddingVertical: 15, alignItems: 'center' },
   saveButtonText: { fontSize: 16, fontWeight: '800', color: '#fff', letterSpacing: 0.3 },
+
+  newTagRow: {
+    flexDirection: 'row', alignItems: 'center',
+    borderWidth: 1.5, borderRadius: 12,
+    paddingHorizontal: 12, paddingVertical: 4,
+    marginTop: 6,
+  },
+  newTagInput: { flex: 1, fontSize: 14, paddingVertical: 8 },
+  newTagAddBtn: {
+    paddingHorizontal: 10, paddingVertical: 4,
+    backgroundColor: '#0a7ea4', borderRadius: 8,
+  },
+  newTagAddBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
 });

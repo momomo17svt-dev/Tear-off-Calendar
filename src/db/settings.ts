@@ -63,6 +63,14 @@ export async function getAllSettings(): Promise<AppSettings> {
     console.error(e);
   }
 
+  let perDayBgUris: Record<string, string> = {};
+  try {
+    const raw = map.get('per_day_bg_uris');
+    if (raw) perDayBgUris = JSON.parse(raw);
+  } catch (e) {
+    console.error(e);
+  }
+
   // DBの文字列表現(SQLite)からアプリの型(TypeScript)へ変換して返却
   return {
     isBgEnabled: map.get('is_bg_enabled') === '1',
@@ -77,5 +85,6 @@ export async function getAllSettings(): Promise<AppSettings> {
     lastViewedMonth: (map.get('last_viewed_month') ?? '') || null,
     cardStyle: (map.get('card_style') as CardStyle) || 'tear-off',
     isPremium: map.get('is_premium') === '1',
+    perDayBgUris,
   };
 }
